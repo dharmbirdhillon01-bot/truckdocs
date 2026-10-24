@@ -9,7 +9,7 @@ do $$ begin
 end $$;
 
 create schema if not exists auth;
-create table if not exists auth.users (id uuid primary key default gen_random_uuid(), email text unique);
+create table if not exists auth.users (id uuid primary key default gen_random_uuid(), email text unique, aud text, role text);
 create or replace function auth.uid() returns uuid language sql stable as $$
   select nullif(nullif(current_setting('request.jwt.claims', true), '')::json->>'sub', '')::uuid
 $$;
