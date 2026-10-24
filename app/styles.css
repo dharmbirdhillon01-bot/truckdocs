@@ -55,3 +55,5 @@ label.f input,label.f select{padding:11px 12px;border:1px solid var(--line);bord
 .choice{display:grid;gap:10px}
 .choice button{text-align:left;padding:16px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);font-weight:600}
 .choice button[aria-pressed="true"]{border:2px solid var(--sign)}
+.member .btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.member .btns .btn{min-height:44px;padding:8px 14px}

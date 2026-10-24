@@ -28,5 +28,13 @@
   "restore_access": "Rendre l'accès",
   "cancel": "Annuler",
   "share_link": "Envoyer le lien d'invitation",
-  "copy_link": "Copier le lien"
+  "copy_link": "Copier le lien",
+  "trucks_trailers": "Camions et remorques",
+  "trucks": "Camions",
+  "trailers": "Remorques",
+  "add_unit": "Ajouter",
+  "rename": "Renommer",
+  "retire": "Retirer",
+  "unit_number": "Numéro d'unité",
+  "save": "Enregistrer"
 }

@@ -36,13 +36,16 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 
 /* ---------------- state ---------------- */
 const S = { view: 'loading', session: null, profile: null, memberships: [], company: null, team: [],
-            msg: null, busy: false, inviteCode: null, confirmUser: null, roleChoice: null };
+            msg: null, busy: false, inviteCode: null, confirmUser: null, roleChoice: null,
+            vehicles: [], editVehicle: null, confirmRetire: null, showRetired: false };
 const setMsg = (kind, text) => { S.msg = text ? { kind, text } : null; };
 function friendly(err) {
   const m = (err && (err.message || err.error_description)) || tx('error_generic');
   if (/Invalid login credentials/i.test(m)) return 'Email or password is not correct.';
   if (/Email not confirmed/i.test(m)) return 'Please confirm your email first. Check your inbox for the link.';
   if (/rate limit/i.test(m)) return 'Too many emails sent in a short time. Please wait a few minutes and try again.';
+  if (/vehicles_company_id_kind_unit_number_key|duplicate key/i.test(m)) return tx('unit_exists');
+  if (/missing email/i.test(m)) return 'Please type your email.';
   return m;
 }
 
@@ -58,9 +61,16 @@ async function loadContext() {
   if (prof && prof.language && prof.language !== lang) { lang = prof.language; localStorage.setItem('td_lang', lang); await loadLang(SECOND[lang]); }
   const active = S.memberships.find(m => m.active);
   S.company = active ? { id: active.company_id, name: active.companies && active.companies.name, role: active.role } : null;
-  if (S.company && S.company.role === 'owner') await loadTeam();
+  if (S.company && S.company.role === 'owner') { await loadTeam(); await loadVehicles(); }
   S.view = S.company ? 'home' : (S.memberships.some(m => !m.active) ? 'removed' : 'onboard');
   if (S.view === 'onboard' && pendingInvite()) S.roleChoice = 'driver';
+}
+async function loadVehicles() {
+  const { data, error } = await sb.from('vehicles').select('id, kind, unit_number, active')
+    .eq('company_id', S.company.id).order('unit_number');
+  if (error) throw error;
+  // numbers in natural order: 9 before 10
+  S.vehicles = (data || []).sort((a, b) => a.unit_number.localeCompare(b.unit_number, undefined, { numeric: true }));
 }
 async function loadTeam() {
   const { data: mems, error } = await sb.from('memberships').select('user_id, role, active, created_at')
@@ -78,6 +88,36 @@ const langSelect = () => `<label class="f">${L('language')}<select id="lang" dat
   ${CFG.languages.map(c => `<option value="${c}" ${c === lang ? 'selected' : ''}>${{ en: 'English only', 'en-pa': 'English + ਪੰਜਾਬੀ', 'en-hi': 'English + हिंदी', 'en-fr': 'English + Français' }[c] || c}</option>`).join('')}
   </select></label>`;
 const inviteNote = () => pendingInvite() ? `<div class="alert ok" role="status">${esc(tx('invited_note'))}</div>` : '';
+// Owner: trucks and trailers. Units are never deleted; "retire" hides them from new work but keeps history.
+const unitRow = v => {
+  if (S.editVehicle === v.id) return `<form class="member" data-form="renameunit" novalidate>
+      <input id="unitname" value="${esc(v.unit_number)}" maxlength="20" required aria-label="${esc(tx('unit_number'))}" style="flex:1">
+      <div class="btns"><button class="btn go" style="width:auto" ${busyAttr()}>${L('save')}</button>
+      <button type="button" class="btn" style="width:auto" data-act="canceledit">${L('cancel')}</button></div></form>`;
+  if (S.confirmRetire === v.id) return `<div class="member"><div><b>${esc(v.unit_number)}</b>
+      <div class="muted small">${esc(tx('confirm_retire'))}</div></div>
+      <div class="btns"><button class="btn danger" style="width:auto" data-act="retire" data-id="${v.id}" ${busyAttr()}>${L('yes_retire')}</button>
+      <button class="btn" style="width:auto" data-act="noretire">${L('cancel')}</button></div></div>`;
+  return `<div class="member"><div><b>${esc(v.unit_number)}</b>${v.active ? '' : ` <span class="chip bad">${esc(tx('retired'))}</span>`}</div>
+    <div class="btns">${v.active
+      ? `<button class="btn" style="width:auto" data-act="editunit" data-id="${v.id}">${L('rename')}</button>
+         <button class="btn danger" style="width:auto" data-act="askretire" data-id="${v.id}">${L('retire')}</button>`
+      : `<button class="btn" style="width:auto" data-act="unretire" data-id="${v.id}" ${busyAttr()}>${L('bring_back')}</button>`}</div></div>`;
+};
+const vehiclesCard = () => {
+  const show = kind => S.vehicles.filter(v => v.kind === kind && (v.active || S.showRetired));
+  const section = (kind, title) => `<h3 style="margin:14px 0 4px">${L(title)}</h3>
+    ${show(kind).map(unitRow).join('') || `<p class="muted small" style="margin:0">${esc(tx('none_yet'))}</p>`}`;
+  const retiredCount = S.vehicles.filter(v => !v.active).length;
+  return `<div class="card"><h2>${L('trucks_trailers')}</h2>
+    ${section('truck', 'trucks')}${section('trailer', 'trailers')}
+    ${retiredCount ? `<button class="btn quiet" data-act="toggleretired">${esc(S.showRetired ? tx('hide_retired') : tx('show_retired') + ' (' + retiredCount + ')')}</button>` : ''}
+    <form class="fields" data-form="addunit" novalidate style="margin-top:12px">
+      <label class="f">${L('unit_type')}<select id="unitkind"><option value="truck">${esc(tx('truck'))}</option><option value="trailer">${esc(tx('trailer'))}</option></select></label>
+      <label class="f">${L('unit_number')}<input id="unitnum" maxlength="20" autocomplete="off" autocapitalize="characters" required placeholder="101"></label>
+      <button class="btn go" ${busyAttr()}>${L('add_unit')}</button>
+    </form></div>`;
+};
 const msgBox = () => S.msg ?`<div class="alert ${S.msg.kind}" role="${S.msg.kind === 'bad' ? 'alert' : 'status'}">${esc(S.msg.text)}</div>` : '';
 const busyAttr = () => S.busy ? 'disabled' : '';
 const submitLabel = k => S.busy ? esc(tx('working')) : L(k);
@@ -151,6 +191,7 @@ const views = {
             : `<button class="btn" style="width:auto" data-act="restore" data-u="${m.user_id}" ${busyAttr()}>${L('restore_access')}</button>`)}
         </div>${S.confirmUser === m.user_id ? `<p class="muted small" style="margin:0">${esc(tx('confirm_remove'))}</p>` : ''}`).join('')}
       </div>
+      ${vehiclesCard()}
       <div class="card"><h2>${L('invite_driver')}</h2>
         ${S.inviteCode ? `<div class="code" id="invcode">${esc(S.inviteCode)}</div><p class="muted small" style="margin:0">${esc(tx('invite_link_ready'))}</p>
           <button class="btn go" data-act="share">${L('share_link')}</button>
@@ -180,8 +221,9 @@ async function run(fn) {
   if (S.busy) return;
   snapshot();
   S.busy = true; setMsg(null); render();
-  try { await fn(); } catch (err) { setMsg('bad', friendly(err)); }
-  finally { S.busy = false; render(); refill(); typed = {}; }
+  let failed = false;
+  try { await fn(); } catch (err) { failed = true; setMsg('bad', friendly(err)); }
+  finally { S.busy = false; render(); if (failed) refill(); typed = {}; }   // keep what was typed only if it didn't go through
 }
 
 const forms = {
@@ -214,6 +256,22 @@ const forms = {
     const { error } = await sb.rpc('create_company', { p_name: val('company').trim(), p_full_name: val('fullname').trim(), p_language: lang });
     if (error) throw error;
     await loadContext();
+  },
+  async addunit() {
+    const num = val('unitnum').trim(), kind = val('unitkind');
+    if (!num) throw new Error(tx('unit_number_needed'));
+    const { error } = await sb.from('vehicles').insert({ company_id: S.company.id, kind, unit_number: num });
+    if (error) throw error;
+    await loadVehicles();
+    setMsg('ok', tx(kind === 'truck' ? 'truck_added' : 'trailer_added').replace('{n}', num.toUpperCase()));
+  },
+  async renameunit() {
+    const num = val('unitname').trim();
+    if (!num) throw new Error(tx('unit_number_needed'));
+    const { data, error } = await sb.from('vehicles').update({ unit_number: num }).eq('id', S.editVehicle).select('id');
+    if (error) throw error;
+    if (!data || !data.length) throw new Error(tx('not_saved'));   // never claim success the server didn't confirm
+    S.editVehicle = null; await loadVehicles(); setMsg('ok', tx('saved'));
   },
   async join() {
     const { error } = await sb.rpc('accept_invite', { p_code: val('code').trim(), p_full_name: val('fullname').trim(), p_language: lang });
@@ -249,6 +307,17 @@ app.addEventListener('click', e => {
     if (navigator.share) navigator.share({ title: 'TruckDocs', text, url }).catch(() => {});
     else if (navigator.clipboard) navigator.clipboard.writeText(text + ' ' + url).then(() => { b.textContent = tx('copied'); }, () => {});
   }
+  if (a === 'editunit') { S.editVehicle = b.dataset.id; S.confirmRetire = null; setMsg(null); render(); }
+  if (a === 'canceledit') { S.editVehicle = null; render(); }
+  if (a === 'askretire') { S.confirmRetire = b.dataset.id; S.editVehicle = null; render(); }
+  if (a === 'noretire') { S.confirmRetire = null; render(); }
+  if (a === 'toggleretired') { S.showRetired = !S.showRetired; render(); }
+  if (a === 'retire' || a === 'unretire') run(async () => {
+    const { data, error } = await sb.from('vehicles').update({ active: a === 'unretire' }).eq('id', b.dataset.id).select('id');
+    if (error) throw error;
+    if (!data || !data.length) throw new Error(tx('not_saved'));
+    S.confirmRetire = null; await loadVehicles(); setMsg('ok', tx(a === 'retire' ? 'unit_retired' : 'unit_back'));
+  });
   if (a === 'askremove') { S.confirmUser = b.dataset.u; render(); }
   if (a === 'noconfirm') { S.confirmUser = null; render(); }
   if (a === 'remove' || a === 'restore') run(async () => {

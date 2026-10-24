@@ -28,5 +28,13 @@
   "restore_access": "पहुँच वापस दें",
   "cancel": "रद्द करें",
   "share_link": "आमंत्रण लिंक भेजें",
-  "copy_link": "लिंक कॉपी करें"
+  "copy_link": "लिंक कॉपी करें",
+  "trucks_trailers": "ट्रक और ट्रेलर",
+  "trucks": "ट्रक",
+  "trailers": "ट्रेलर",
+  "add_unit": "जोड़ें",
+  "rename": "नाम बदलें",
+  "retire": "बंद करें",
+  "unit_number": "यूनिट नंबर",
+  "save": "सेव करें"
 }
