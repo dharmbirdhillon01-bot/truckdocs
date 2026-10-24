@@ -37,7 +37,12 @@ Deno.serve(async (req) => {
     const c = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
     const s = await c.auth.signInWithPassword({ email, password });
     if (s.error) throw s.error;
-    return { id: data.user.id, email, password, c };
+    return { id: data.user.id, email, password, c, token: s.data.session!.access_token };
+  };
+  // Download through the secure server function, exactly as the app will.
+  const fileVia = async (token: string, p: string) => {
+    const r = await fetch(`${URL_}/functions/v1/td-file?path=${encodeURIComponent(p)}`, { headers: { Authorization: `Bearer ${token}`, apikey: ANON } });
+    await r.arrayBuffer(); return r.ok;
   };
 
   let owner: any, driver: any, driver2: any, ownerB: any, cA = "", cB = "", docId = "", path = "";
@@ -96,27 +101,44 @@ Deno.serve(async (req) => {
     const dl = await admin.storage.from("documents").download(path);
     ok(dl.data && !dl.error, "file was deleted by owner");
   });
-  await test("Storage API: driver and owner can open the file; other driver and other company cannot", async () => {
-    ok(!(await driver.c.storage.from("documents").download(path)).error, "driver cannot open own file");
-    ok(!(await owner.c.storage.from("documents").download(path)).error, "owner cannot open file");
-    ok((await driver2.c.storage.from("documents").download(path)).error, "other driver opened it");
-    ok((await ownerB.c.storage.from("documents").download(path)).error, "other company opened it");
-    ok((await driver2.c.storage.from("documents").createSignedUrl(path, 60)).error, "other driver got a share link");
+  await test("Direct storage downloads and share links refused for everyone (server check only)", async () => {
+    ok((await driver.c.storage.from("documents").download(path)).error, "driver direct download worked");
+    ok((await owner.c.storage.from("documents").download(path)).error, "owner direct download worked");
+    ok((await driver.c.storage.from("documents").createSignedUrl(path, 60)).error, "driver created a share link");
+    ok((await owner.c.storage.from("documents").createSignedUrl(path, 60)).error, "owner created a share link");
+  });
+  await test("Secure download: driver and owner can open; other driver, other company, signed-out cannot", async () => {
+    ok(await fileVia(driver.token, path), "driver cannot open own file");
+    ok(await fileVia(owner.token, path), "owner cannot open file");
+    ok(!(await fileVia(driver2.token, path)), "other driver opened it");
+    ok(!(await fileVia(ownerB.token, path)), "other company opened it");
+    ok(!(await fileVia(ANON, path)), "signed-out visitor opened it");
   });
   await test("Storage API: no uploads into another company's folder", async () => {
     const u = await driver.c.storage.from("documents").upload(`${cB}/docs/${crypto.randomUUID()}/x.txt`, bytes);
     ok(u.error, "cross-company upload allowed");
   });
-  await test("Investigate: cache window after removal", async () => {
-    await driver.c.storage.from("documents").download(path);
+  await test("Driver removed: file refused at once AND 65 s later (same login); no records, no uploads; owner keeps record", async () => {
+    ok(await fileVia(driver.token, path), "setup: driver should open before removal");
     const r = await owner.c.rpc("set_member_active", { p_company: cA, p_user: driver.id, p_active: false }); if (r.error) throw r.error;
-    const at0 = !(await driver.c.storage.from("documents").download(path)).error;
+    ok(!(await fileVia(driver.token, path)), "opened right after removal");
+    ok(((await driver.c.from("documents").select("id")).data ?? []).length === 0, "still sees documents");
+    ok((await driver.c.storage.from("documents").upload(`${cA}/docs/${docId}/${crypto.randomUUID()}.txt`, bytes)).error, "still uploads");
     await new Promise((res) => setTimeout(res, 65000));
-    const at65 = !(await driver.c.storage.from("documents").download(path)).error;
+    ok(!(await fileVia(driver.token, path)), "opened 65 s after removal");
     const fresh = createClient(URL_, ANON, { auth: { persistSession: false } });
     const s2 = await fresh.auth.signInWithPassword({ email: driver.email, password: driver.password });
-    const newSession = s2.error ? "signin failed" : !(await fresh.storage.from("documents").download(path)).error;
-    throw new Error("REPORT " + JSON.stringify({ at0, at65, new_session_can_open: newSession }));
+    ok(s2.error || !(await fileVia(s2.data.session!.access_token, path)), "new login opened it");
+    ok(((await owner.c.from("documents").select("id").eq("id", docId)).data ?? []).length === 1, "owner lost the record");
+  });
+  await test("Driver restored by owner can open files again", async () => {
+    const r = await owner.c.rpc("set_member_active", { p_company: cA, p_user: driver.id, p_active: true }); if (r.error) throw r.error;
+    ok(await fileVia(driver.token, path), "access not restored");
+  });
+  await test("Disabled login account cannot sign in", async () => {
+    const b = await admin.auth.admin.updateUserById(driver2.id, { ban_duration: "24h" }); if (b.error) throw b.error;
+    const c = createClient(URL_, ANON, { auth: { persistSession: false } });
+    ok((await c.auth.signInWithPassword({ email: driver2.email, password: driver2.password })).error, "disabled account signed in");
   });
   // Clean up files through the Storage API (service role); database rows are removed by the admin afterwards.
   if (created.files.length) await admin.storage.from("documents").remove(created.files);
