@@ -26,5 +26,7 @@
   "copy": "Copier",
   "remove_access": "Retirer l'accès",
   "restore_access": "Rendre l'accès",
-  "cancel": "Annuler"
+  "cancel": "Annuler",
+  "share_link": "Envoyer le lien d'invitation",
+  "copy_link": "Copier le lien"
 }

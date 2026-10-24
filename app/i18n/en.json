@@ -43,5 +43,10 @@
   "owner_home_note": "Trucks, documents and papers come in the next steps.",
   "working": "Working…",
   "password_rule": "At least 8 characters.",
-  "error_generic": "Something went wrong. Please try again."
+  "error_generic": "Something went wrong. Please try again.",
+  "share_link": "Send invite link",
+  "copy_link": "Copy link",
+  "invite_link_ready": "Send this link to your driver (WhatsApp, text or email). It works once and expires in 7 days. The code above is for typing in by hand.",
+  "share_text": "Join {company} on TruckDocs. Tap the link to create your account:",
+  "invited_note": "You have been invited to join a company. Create your account (or sign in) and you will join with one tap."
 }

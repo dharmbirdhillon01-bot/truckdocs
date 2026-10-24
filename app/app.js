@@ -9,6 +9,14 @@ const sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });
 const RETURN_URL = location.origin + location.pathname;
+// Invite links: <app>/?invite=CODE. The code is kept on this phone until the driver has joined.
+// It is only a convenience: the server still checks the code (one use, 7-day expiry) when joining.
+const INVITE_KEY = 'td_invite';
+const keep = { get: k => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { /* private mode */ } } };
+const pendingInvite = () => keep.get(INVITE_KEY)
+  || (S.session && S.session.user.user_metadata && S.session.user.user_metadata.invite) || '';
+const inviteLink = code => RETURN_URL + '?invite=' + encodeURIComponent(code);
 
 /* ---------------- translations (English always shown) ---------------- */
 const SECOND = { 'en': null, 'en-pa': 'pa', 'en-hi': 'hi', 'en-fr': 'fr' };
@@ -52,6 +60,7 @@ async function loadContext() {
   S.company = active ? { id: active.company_id, name: active.companies && active.companies.name, role: active.role } : null;
   if (S.company && S.company.role === 'owner') await loadTeam();
   S.view = S.company ? 'home' : (S.memberships.some(m => !m.active) ? 'removed' : 'onboard');
+  if (S.view === 'onboard' && pendingInvite()) S.roleChoice = 'driver';
 }
 async function loadTeam() {
   const { data: mems, error } = await sb.from('memberships').select('user_id, role, active, created_at')
@@ -68,13 +77,14 @@ async function loadTeam() {
 const langSelect = () => `<label class="f">${L('language')}<select id="lang" data-act="lang">
   ${CFG.languages.map(c => `<option value="${c}" ${c === lang ? 'selected' : ''}>${{ en: 'English only', 'en-pa': 'English + ਪੰਜਾਬੀ', 'en-hi': 'English + हिंदी', 'en-fr': 'English + Français' }[c] || c}</option>`).join('')}
   </select></label>`;
-const msgBox = () => S.msg ? `<div class="alert ${S.msg.kind}" role="${S.msg.kind === 'bad' ? 'alert' : 'status'}">${esc(S.msg.text)}</div>` : '';
+const inviteNote = () => pendingInvite() ? `<div class="alert ok" role="status">${esc(tx('invited_note'))}</div>` : '';
+const msgBox = () => S.msg ?`<div class="alert ${S.msg.kind}" role="${S.msg.kind === 'bad' ? 'alert' : 'status'}">${esc(S.msg.text)}</div>` : '';
 const busyAttr = () => S.busy ? 'disabled' : '';
 const submitLabel = k => S.busy ? esc(tx('working')) : L(k);
 
 const views = {
   loading: () => `<p class="muted">Loading…</p>`,
-  signin: () => `<h1>${L('sign_in')}</h1>${msgBox()}
+  signin: () => `<h1>${L('sign_in')}</h1>${inviteNote()}${msgBox()}
     <form class="card fields" data-form="signin" novalidate>
       <label class="f">${L('email')}<input id="email" type="email" autocomplete="email" required></label>
       <label class="f">${L('password')}<input id="password" type="password" autocomplete="current-password" required></label>
@@ -83,7 +93,7 @@ const views = {
     </form>
     <button class="btn" data-act="go" data-v="signup">${L('no_account')}</button>
     <div class="card">${langSelect()}</div>`,
-  signup: () => `<h1>${L('sign_up')}</h1>${msgBox()}
+  signup: () => `<h1>${L('sign_up')}</h1>${inviteNote()}${msgBox()}
     <form class="card fields" data-form="signup" novalidate>
       <label class="f">${L('email')}<input id="email" type="email" autocomplete="email" required></label>
       <label class="f">${L('password')}<input id="password" type="password" autocomplete="new-password" minlength="8" required>
@@ -117,7 +127,7 @@ const views = {
       ${S.roleChoice === 'owner'
         ? `<label class="f">${L('company_name')}<input id="company" required></label>
            <button class="btn go big" ${busyAttr()}>${submitLabel('create_company')}</button>`
-        : `<label class="f">${L('invite_code')}<input id="code" autocapitalize="characters" autocomplete="off" required></label>
+        : `<label class="f">${L('invite_code')}<input id="code" autocapitalize="characters" autocomplete="off" required value="${esc(pendingInvite())}"></label>
            <button class="btn go big" ${busyAttr()}>${submitLabel('join_company')}</button>`}
     </form>` : ''}
     <div class="card">${langSelect()}</div>
@@ -142,8 +152,9 @@ const views = {
         </div>${S.confirmUser === m.user_id ? `<p class="muted small" style="margin:0">${esc(tx('confirm_remove'))}</p>` : ''}`).join('')}
       </div>
       <div class="card"><h2>${L('invite_driver')}</h2>
-        ${S.inviteCode ? `<div class="code" id="invcode">${esc(S.inviteCode)}</div><p class="muted small" style="margin:0">${esc(tx('invite_ready'))}</p>
-          <button class="btn" data-act="copy">${L('copy')}</button>`
+        ${S.inviteCode ? `<div class="code" id="invcode">${esc(S.inviteCode)}</div><p class="muted small" style="margin:0">${esc(tx('invite_link_ready'))}</p>
+          <button class="btn go" data-act="share">${L('share_link')}</button>
+          <button class="btn" data-act="copy">${L('copy_link')}</button>`
           : `<button class="btn go" data-act="invite" ${busyAttr()}>${L('invite_driver')}</button>`}
       </div>
       <div class="card"><p class="muted" style="margin:0">${esc(tx('owner_home_note'))}</p></div>
@@ -181,7 +192,9 @@ const forms = {
   },
   async signup() {
     if (val('password').length < 8) throw new Error(tx('password_rule'));
-    const { data, error } = await sb.auth.signUp({ email: val('email').trim(), password: val('password'), options: { emailRedirectTo: RETURN_URL } });
+    const inv = pendingInvite();   // travels with the account, so it still works if the email link opens in another browser
+    const { data, error } = await sb.auth.signUp({ email: val('email').trim(), password: val('password'),
+      options: { emailRedirectTo: RETURN_URL, data: inv ? { invite: inv } : undefined } });
     if (error) throw error;
     if (data.session) { S.session = data.session; await loadContext(); } else S.view = 'checkemail';
   },
@@ -205,6 +218,8 @@ const forms = {
   async join() {
     const { error } = await sb.rpc('accept_invite', { p_code: val('code').trim(), p_full_name: val('fullname').trim(), p_language: lang });
     if (error) throw error;
+    keep.set(INVITE_KEY, null);
+    if (S.session.user.user_metadata && S.session.user.user_metadata.invite) await sb.auth.updateUser({ data: { invite: null } });
     await loadContext();
   },
 };
@@ -224,9 +239,15 @@ app.addEventListener('click', e => {
     const { data, error } = await sb.rpc('create_invite', { p_company: S.company.id }); if (error) throw error; S.inviteCode = data;
   });
   if (a === 'copy') {
-    const code = S.inviteCode;
     const done = () => { b.textContent = tx('copied'); };
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(done, () => {});
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(inviteLink(S.inviteCode)).then(done, () => {});
+  }
+  if (a === 'share') {
+    const url = inviteLink(S.inviteCode);
+    const text = tx('share_text').replace('{company}', S.company.name);
+    // The phone's own share sheet (WhatsApp, Messages, email…). Falls back to copying the link.
+    if (navigator.share) navigator.share({ title: 'TruckDocs', text, url }).catch(() => {});
+    else if (navigator.clipboard) navigator.clipboard.writeText(text + ' ' + url).then(() => { b.textContent = tx('copied'); }, () => {});
   }
   if (a === 'askremove') { S.confirmUser = b.dataset.u; render(); }
   if (a === 'noconfirm') { S.confirmUser = null; render(); }
@@ -253,10 +274,12 @@ sb.auth.onAuthStateChange((event, session) => {
 (async function boot() {
   try { const r = await fetch('i18n/en.json', { cache: 'no-cache' }); if (r.ok) I18N.en = await r.json(); } catch { /* fall back to keys */ }
   await loadLang(SECOND[lang]);
+  const q = new URLSearchParams(location.search).get('invite');
+  if (q && /^[A-Za-z0-9]{6,20}$/.test(q)) { keep.set(INVITE_KEY, q.toUpperCase()); history.replaceState(null, '', RETURN_URL + location.hash); }
   const { data } = await sb.auth.getSession();
   S.session = data.session;
   if (S.view === 'setpw') return render();
-  if (!S.session) { S.view = 'signin'; return render(); }
+  if (!S.session) { S.view = pendingInvite() ? 'signup' : 'signin'; return render(); }
   try { await loadContext(); } catch (err) { S.view = 'signin'; setMsg('bad', friendly(err)); }
   render();
 })();

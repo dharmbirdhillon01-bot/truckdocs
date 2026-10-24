@@ -26,5 +26,7 @@
   "copy": "कॉपी",
   "remove_access": "पहुँच हटाएं",
   "restore_access": "पहुँच वापस दें",
-  "cancel": "रद्द करें"
+  "cancel": "रद्द करें",
+  "share_link": "आमंत्रण लिंक भेजें",
+  "copy_link": "लिंक कॉपी करें"
 }
