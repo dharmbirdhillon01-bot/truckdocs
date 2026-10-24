@@ -78,5 +78,7 @@
   "add_truck": "Add truck",
   "add_trailer": "Add trailer",
   "truck_number": "Truck number",
-  "trailer_number": "Trailer number"
+  "trailer_number": "Trailer number",
+  "show_removed": "Show removed drivers",
+  "hide_removed": "Hide removed drivers"
 }

@@ -37,7 +37,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 /* ---------------- state ---------------- */
 const S = { view: 'loading', session: null, profile: null, memberships: [], company: null, team: [],
             msg: null, busy: false, inviteCode: null, confirmUser: null, roleChoice: null,
-            vehicles: [], editVehicle: null, confirmRetire: null, showRetired: false };
+            vehicles: [], editVehicle: null, confirmRetire: null, showRetired: false, showRemoved: false, pick: {} };
 const setMsg = (kind, text) => { S.msg = text ? { kind, text } : null; };
 function friendly(err) {
   const m = (err && (err.message || err.error_description)) || tx('error_generic');
@@ -89,7 +89,7 @@ const langSelect = () => `<label class="f">${L('language')}<select id="lang" dat
   </select></label>`;
 const inviteNote = () => pendingInvite() ? `<div class="alert ok" role="status">${esc(tx('invited_note'))}</div>` : '';
 // Owner: trucks and trailers. Units are never deleted; "retire" hides them from new work but keeps history.
-const unitRow = v => {
+const unitRow = (v, solo) => {
   if (S.editVehicle === v.id) return `<form class="member" data-form="renameunit" novalidate>
       <input id="unitname" value="${esc(v.unit_number)}" maxlength="20" required aria-label="${esc(tx('unit_number'))}" style="flex:1">
       <div class="btns"><button class="btn go" style="width:auto" ${busyAttr()}>${L('save')}</button>
@@ -98,22 +98,31 @@ const unitRow = v => {
       <div class="muted small">${esc(tx('confirm_retire'))}</div></div>
       <div class="btns"><button class="btn danger" style="width:auto" data-act="retire" data-id="${v.id}" ${busyAttr()}>${L('yes_retire')}</button>
       <button class="btn" style="width:auto" data-act="noretire">${L('cancel')}</button></div></div>`;
-  return `<div class="member"><div><b>${esc(v.unit_number)}</b>${v.active ? '' : ` <span class="chip bad">${esc(tx('retired'))}</span>`}</div>
+  return `<div class="member${solo ? ' solo' : ''}"><div>${solo ? '' : `<b>${esc(v.unit_number)}</b>`}${v.active ? '' : ` <span class="chip bad">${esc(tx('retired'))}</span>`}</div>
     <div class="btns">${v.active
       ? `<button class="btn" style="width:auto" data-act="editunit" data-id="${v.id}">${L('rename')}</button>
          <button class="btn danger" style="width:auto" data-act="askretire" data-id="${v.id}">${L('retire')}</button>`
       : `<button class="btn" style="width:auto" data-act="unretire" data-id="${v.id}" ${busyAttr()}>${L('bring_back')}</button>`}</div></div>`;
 };
 const vehiclesCard = () => {
-  const show = kind => S.vehicles.filter(v => v.kind === kind && (v.active || S.showRetired));
-  // Each list has its own add box right under it: "Add truck" under Trucks, "Add trailer" under Trailers.
-  const section = (kind, title, ph) => `<h3 style="margin:16px 0 4px">${L(title)}</h3>
-    ${show(kind).map(unitRow).join('') || `<p class="muted small" style="margin:0">${esc(tx('none_yet'))}</p>`}
+  // Each type: a dropdown to pick one unit (then Rename / Retire for it), and an add box under it.
+  const list = kind => S.vehicles.filter(v => v.kind === kind && (v.active || S.showRetired));
+  const section = (kind, title, ph) => {
+    const items = list(kind);
+    let cur = items.find(v => v.id === S.pick[kind]) || items[0];
+    if (S.editVehicle && items.some(v => v.id === S.editVehicle)) cur = items.find(v => v.id === S.editVehicle);
+    if (S.confirmRetire && items.some(v => v.id === S.confirmRetire)) cur = items.find(v => v.id === S.confirmRetire);
+    return `<h3 style="margin:16px 0 6px">${L(title)} <span class="muted small">(${items.filter(v => v.active).length})</span></h3>
+    ${items.length ? `<label class="f"><span class="sr">${esc(tx(kind === 'truck' ? 'truck_number' : 'trailer_number'))}</span>
+        <select data-act="pick" data-kind="${kind}">${items.map(v => `<option value="${v.id}" ${cur && v.id === cur.id ? 'selected' : ''}>${esc(v.unit_number)}${v.active ? '' : ' — ' + esc(tx('retired'))}</option>`).join('')}</select></label>
+      ${cur ? unitRow(cur, true) : ''}`
+      : `<p class="muted small" style="margin:0">${esc(tx('none_yet'))}</p>`}
     <form class="addrow" data-form="addunit" data-kind="${kind}" novalidate>
       <input id="unitnum-${kind}" maxlength="20" autocomplete="off" autocapitalize="characters" required
         placeholder="${ph}" aria-label="${esc(tx(kind === 'truck' ? 'truck_number' : 'trailer_number'))}">
       <button class="btn go" ${busyAttr()}>${L(kind === 'truck' ? 'add_truck' : 'add_trailer')}</button>
     </form>`;
+  };
   const retiredCount = S.vehicles.filter(v => !v.active).length;
   return `<div class="card"><h2>${L('trucks_trailers')}</h2>
     ${section('truck', 'trucks', '101')}${section('trailer', 'trailers', '205')}
@@ -185,13 +194,14 @@ const views = {
       <div class="card">${langSelect()}</div><button class="btn quiet" data-act="signout">${L('sign_out')}</button>`;
     return header + `
       <div class="card"><div class="row"><h2>${L('team')}</h2></div>
-        ${S.team.map(m => `<div class="member"><div><b>${esc(m.name)}</b>${m.me ? ' <span class="muted small">(you)</span>' : ''}<div class="muted small">${esc(tx(m.role))} · ${m.active ? '<span class="chip ok">' + esc(tx('active')) + '</span>' : '<span class="chip bad">' + esc(tx('removed')) + '</span>'}</div></div>
+        ${S.team.filter(m => m.active || S.showRemoved).map(m => `<div class="member"><div><b>${esc(m.name)}</b>${m.me ? ' <span class="muted small">(you)</span>' : ''}<div class="muted small">${esc(tx(m.role))} · ${m.active ? '<span class="chip ok">' + esc(tx('active')) + '</span>' : '<span class="chip bad">' + esc(tx('removed')) + '</span>'}</div></div>
           ${m.me ? '' : (m.active
             ? (S.confirmUser === m.user_id
                 ? `<div class="btns"><button class="btn danger" data-act="remove" data-u="${m.user_id}" ${busyAttr()}>${L('yes_remove')}</button><button class="btn" data-act="noconfirm">${L('cancel')}</button></div>`
                 : `<button class="btn danger" style="width:auto" data-act="askremove" data-u="${m.user_id}">${L('remove_access')}</button>`)
             : `<button class="btn" style="width:auto" data-act="restore" data-u="${m.user_id}" ${busyAttr()}>${L('restore_access')}</button>`)}
         </div>${S.confirmUser === m.user_id ? `<p class="muted small" style="margin:0">${esc(tx('confirm_remove'))}</p>` : ''}`).join('')}
+        ${S.team.some(m => !m.active) ? `<button class="btn quiet" data-act="toggleremoved">${esc(S.showRemoved ? tx('hide_removed') : tx('show_removed') + ' (' + S.team.filter(m => !m.active).length + ')')}</button>` : ''}
       </div>
       ${vehiclesCard()}
       <div class="card"><h2>${L('invite_driver')}</h2>
@@ -266,6 +276,8 @@ const forms = {
     const { error } = await sb.from('vehicles').insert({ company_id: S.company.id, kind, unit_number: num });
     if (error) throw error;
     await loadVehicles();
+    const added = S.vehicles.find(v => v.kind === kind && v.unit_number === num.toUpperCase().replace(/\s+/g, ' '));
+    if (added) S.pick[kind] = added.id;   // show the new one in the dropdown
     setMsg('ok', tx(kind === 'truck' ? 'truck_added' : 'trailer_added').replace('{n}', num.toUpperCase()));
   },
   async renameunit() {
@@ -314,6 +326,7 @@ app.addEventListener('click', e => {
   if (a === 'canceledit') { S.editVehicle = null; render(); }
   if (a === 'askretire') { S.confirmRetire = b.dataset.id; S.editVehicle = null; render(); }
   if (a === 'noretire') { S.confirmRetire = null; render(); }
+  if (a === 'toggleremoved') { S.showRemoved = !S.showRemoved; render(); }
   if (a === 'toggleretired') { S.showRetired = !S.showRetired; render(); }
   if (a === 'retire' || a === 'unretire') run(async () => {
     const { data, error } = await sb.from('vehicles').update({ active: a === 'unretire' }).eq('id', b.dataset.id).select('id');
@@ -330,6 +343,7 @@ app.addEventListener('click', e => {
   });
 });
 app.addEventListener('change', async e => {
+  if (e.target.dataset.act === 'pick') { S.pick[e.target.dataset.kind] = e.target.value; S.editVehicle = null; S.confirmRetire = null; return render(); }
   if (e.target.dataset.act !== 'lang') return;
   lang = e.target.value; localStorage.setItem('td_lang', lang); await loadLang(SECOND[lang]);
   if (S.session && S.profile) {
