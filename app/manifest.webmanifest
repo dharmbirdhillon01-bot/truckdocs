@@ -1,0 +1,8 @@
+{
+  "name": "TruckDocs",
+  "short_name": "TruckDocs",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#e9eeef",
+  "theme_color": "#1b4a86"
+}

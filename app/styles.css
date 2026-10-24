@@ -1,0 +1,57 @@
+/* Same visual system as the approved demo (v9): road-sign blue for actions, hi-vis amber for attention. */
+:root{
+  --bg:#e9eeef; --surface:#fff; --surface-2:#f4f7f7; --ink:#142227; --muted:#58696e; --line:#d3dbdd;
+  --sign:#1b4a86; --sign-ink:#fff; --amber:#f2a900; --amber-soft:#fff3d1; --amber-ink:#5a3e00;
+  --ok:#1d7f47; --ok-soft:#e1f3e8; --bad:#b3362a; --bad-soft:#fbe5e2; --r:12px;
+  --f-display:"Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Barlow","Noto Sans Gurmukhi","Noto Sans Devanagari",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0e1517; --surface:#172225; --surface-2:#1d2a2e; --ink:#e6eef0; --muted:#9bacb1; --line:#2b3a3e;
+  --sign:#7aa7e8; --sign-ink:#06152b; --amber:#f5b82e; --amber-soft:#3a2e10; --amber-ink:#ffd98a;
+  --ok:#4cc27f; --ok-soft:#163324; --bad:#ef7a6c; --bad-soft:#3a1d19; color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.4}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+.app{max-width:440px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
+.boot{padding:40px 16px;color:var(--muted)}
+header{position:sticky;top:0;z-index:10;background:var(--surface);border-bottom:1px solid var(--line);
+  padding:calc(10px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px));
+  display:flex;align-items:center;justify-content:space-between;gap:8px}
+.brand{font-family:var(--f-display);font-weight:700;font-size:20px}
+.brand b{color:var(--sign)}
+.env{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--amber-ink);background:var(--amber-soft);padding:2px 8px;border-radius:999px}
+main{flex:1;padding:16px max(16px,env(safe-area-inset-right,0px)) 32px max(16px,env(safe-area-inset-left,0px));display:grid;gap:16px;align-content:start}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance}
+h1{font-size:26px} h2{font-size:19px}
+.l2{display:block;font-size:.88em;color:var(--muted);font-weight:500}
+.btn .l2,.btn.go .l2{color:inherit;opacity:1}
+.muted{color:var(--muted)} .small{font-size:13px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:grid;gap:12px}
+.fields{display:grid;gap:12px}
+label.f{display:grid;gap:4px;font-size:14px;font-weight:600}
+label.f input,label.f select{padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-weight:400;font-size:16px;width:100%}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:12px 16px;font-weight:600;text-align:center;width:100%;display:block}
+.btn.go{background:var(--sign);color:var(--sign-ink);border-color:var(--sign)}
+.btn.quiet{background:none;border-color:transparent;color:var(--sign);padding:8px}
+.btn.danger{color:var(--bad)}
+.btn.big{padding:16px;font-size:17px}
+.btn[disabled]{opacity:.6;cursor:wait}
+.btns{display:grid;gap:10px}
+.alert{border-radius:var(--r);padding:12px 14px;font-size:15px}
+.alert.bad{background:var(--bad-soft);border:1px solid var(--bad);color:var(--ink)}
+.alert.ok{background:var(--ok-soft);border:1px solid var(--ok)}
+.alert.warn{background:var(--amber-soft);border:1px solid var(--amber)}
+.chip{display:inline-flex;font-size:13px;font-weight:600;padding:3px 10px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line)}
+.chip.ok{background:var(--ok-soft);color:var(--ok);border-color:transparent}
+.chip.bad{background:var(--bad-soft);color:var(--bad);border-color:transparent}
+.row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.member{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.member:first-of-type{border-top:0}
+.code{font-family:ui-monospace,Menlo,monospace;font-size:24px;letter-spacing:.12em;font-weight:700;text-align:center;padding:12px;background:var(--surface-2);border-radius:10px;user-select:all}
+.choice{display:grid;gap:10px}
+.choice button{text-align:left;padding:16px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);font-weight:600}
+.choice button[aria-pressed="true"]{border:2px solid var(--sign)}
