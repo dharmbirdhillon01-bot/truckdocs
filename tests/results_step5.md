@@ -63,3 +63,16 @@ Unpredictable, so not acceptable.
 | Disabled login cannot sign in | PASS |
 
 Step 5 security result: **PASS**. Still to do manually: password-reset email from a real inbox (needs hosted app).
+
+## Real-phone tests — 2026-10-23 evening (owner's iPhone + driver's phone, live app on GitHub Pages)
+| Test | Result |
+|---|---|
+| Owner sign-up, email confirmation link, sign-in | PASS |
+| Owner creates company "2438835 alberta ltd" | PASS |
+| Invite: driver Jashan Dhillon joins, shows Driver / Active | PASS |
+| Owner removes driver: driver's phone shows "access removed" | PASS |
+| Owner restores driver | PASS |
+| Language switch (EN, EN+PA, EN+FR) | PASS |
+| Bug found + fixed: form emptied on redraw ("at least 8 characters") | FIXED, retested |
+| Added: invite link (share sheet) with auto-filled code | Built, tested in browser; real-phone test pending |
+| Password reset email | PENDING |
