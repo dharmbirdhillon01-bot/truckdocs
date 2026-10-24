@@ -62,3 +62,69 @@ label.f input,label.f select,.addrow input,.member input{padding:11px 12px;borde
 .addrow .btn{width:auto;min-height:48px;padding:8px 16px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .member.solo{border-top:0;padding-top:4px}
+
+/* ---------- polish pass (owner feedback: look more professional) ---------- */
+:root{--shadow:0 1px 2px rgba(16,24,40,.05),0 2px 8px rgba(16,24,40,.06);--sign-2:#245ba3}
+header{background:var(--sign);border-bottom:0;color:#fff}
+.brandwrap{display:flex;align-items:center;gap:10px}
+.logo{width:34px;height:34px;border-radius:9px;background:#fff;color:var(--sign);display:grid;place-items:center;box-shadow:0 2px 6px rgba(0,0,0,.18)}
+.logo svg{width:22px;height:22px}
+header .brand{color:#fff;font-size:22px;letter-spacing:.01em}
+header .brand b{color:#ffd166}
+.env{background:rgba(255,255,255,.16);color:#fff}
+main{gap:14px}
+.card{border-color:transparent;box-shadow:var(--shadow);padding:16px;border-radius:16px}
+.btn{border-radius:12px;min-height:48px}
+.btn.go{box-shadow:0 2px 0 rgba(0,0,0,.12)}
+.btn.go:active{transform:translateY(1px)}
+.alert{border-radius:14px}
+.eyebrow{font-size:13px;font-weight:600;color:rgba(255,255,255,.8)}
+/* hero on sign-in screens */
+.hero{color:#fff;display:grid;gap:6px;padding:8px 2px 4px}
+.hero-ic{width:56px;height:56px;border-radius:16px;background:rgba(255,255,255,.14);display:grid;place-items:center;margin-bottom:4px}
+.hero-ic svg{width:32px;height:32px}
+.hero h1{font-size:30px}
+.hero h1 .l2,.company h1 .l2{color:rgba(255,255,255,.8)}
+.hero p{margin:0;color:rgba(255,255,255,.85);font-size:15px}
+/* company banner on home */
+.company{color:#fff;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:2px 2px 4px}
+.company h1{font-size:28px}
+.chip.role{background:#ffd166;color:#3a2a00;border-color:transparent}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stats>div{background:var(--surface);border-radius:14px;box-shadow:var(--shadow);padding:12px 8px;display:grid;justify-items:center;gap:2px}
+.stats b{font-family:var(--f-display);font-size:28px;line-height:1}
+.stats span:last-child{font-size:13px;color:var(--muted)}
+.stat-ic{width:30px;height:30px;border-radius:9px;background:#e8f0fb;color:var(--sign);display:grid;place-items:center;margin-bottom:4px}
+.stat-ic svg{width:18px;height:18px}
+/* section titles with icons */
+.sec{display:flex;align-items:center;gap:10px}
+.sec-ic{width:34px;height:34px;flex:none;border-radius:10px;background:#e8f0fb;color:var(--sign);display:grid;place-items:center}
+.sec-ic svg{width:20px;height:20px}
+.sec h2{font-size:20px}
+.sub{display:flex;align-items:center;gap:8px;margin:12px 0 6px;font-size:17px}
+.sub-ic{color:var(--muted);display:grid}.sub-ic svg{width:20px;height:20px}
+.count{font-family:var(--f-body);font-size:12px;font-weight:600;background:var(--surface-2);border-radius:999px;padding:1px 8px;color:var(--muted)}
+.soon{grid-template-columns:auto 1fr;align-items:center;background:var(--surface-2);box-shadow:none;border:1px dashed var(--line)}
+/* team */
+.who{display:flex;gap:10px;align-items:center;min-width:0}
+.avatar{width:40px;height:40px;flex:none;border-radius:50%;background:var(--sign);color:#fff;display:grid;place-items:center;font-weight:700;font-size:15px}
+/* role choice cards */
+.choice{grid-template-columns:1fr 1fr}
+.choice button{display:grid;gap:10px;justify-items:start;padding:16px;border:2px solid transparent;border-radius:16px;box-shadow:var(--shadow);min-height:132px;font-size:16px}
+.choice button[aria-pressed="true"]{border-color:var(--sign);background:#f1f6fd}
+.choice-ic{width:48px;height:48px;border-radius:14px;background:#e8f0fb;color:var(--sign);display:grid;place-items:center}
+.choice-ic svg{width:28px;height:28px}
+.code{border:2px dashed var(--line);background:var(--surface)}
+@media (prefers-color-scheme: dark){
+  .stat-ic,.sec-ic,.choice-ic{background:#1d3150;color:#a9c8f2}
+  .choice button[aria-pressed="true"]{background:#16263b}
+  .band{background:#123461}
+  header{background:#123461}
+}
+
+/* blue band at the top of a screen, joined to the header */
+.band{background:var(--sign);color:#fff;margin:-16px calc(-1 * max(16px,env(safe-area-inset-right,0px))) 0 calc(-1 * max(16px,env(safe-area-inset-left,0px)));
+  padding:14px max(18px,env(safe-area-inset-right,0px)) 26px max(18px,env(safe-area-inset-left,0px));border-radius:0 0 24px 24px}
+.band.company{padding-bottom:46px}
+.band + .stats{margin-top:-40px}
+.band + .alert{margin-top:2px}

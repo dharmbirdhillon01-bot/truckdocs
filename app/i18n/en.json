@@ -81,5 +81,11 @@
   "trailer_number": "Trailer number",
   "show_removed": "Show removed drivers",
   "hide_removed": "Hide removed drivers",
-  "unit_back_number": "{n} is back in your list."
+  "unit_back_number": "{n} is back in your list.",
+  "tagline": "Truck papers, fuel receipts and load documents, safe in one place.",
+  "tagline_signup": "Free for drivers. Set up your company in under a minute.",
+  "tagline_forgot": "We'll email you a link to set a new password.",
+  "hello": "Hello",
+  "drivers": "Drivers",
+  "invite_help": "Send a link by WhatsApp or text. Your driver taps it and joins your company."
 }

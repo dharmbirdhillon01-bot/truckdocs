@@ -84,7 +84,7 @@ async function loadTeam() {
 }
 
 /* ---------------- views ---------------- */
-const langSelect = () => `<label class="f">${L('language')}<select id="lang" data-act="lang">
+const langSelect = () => `<label class="f"><span class="sr">${esc(tx('language'))}</span><select id="lang" data-act="lang">
   ${CFG.languages.map(c => `<option value="${c}" ${c === lang ? 'selected' : ''}>${{ en: 'English only', 'en-pa': 'English + ਪੰਜਾਬੀ', 'en-hi': 'English + हिंदी', 'en-fr': 'English + Français' }[c] || c}</option>`).join('')}
   </select></label>`;
 const inviteNote = () => pendingInvite() ? `<div class="alert ok" role="status">${esc(tx('invited_note'))}</div>` : '';
@@ -112,7 +112,7 @@ const vehiclesCard = () => {
     let cur = items.find(v => v.id === S.pick[kind]) || items[0];
     if (S.editVehicle && items.some(v => v.id === S.editVehicle)) cur = items.find(v => v.id === S.editVehicle);
     if (S.confirmRetire && items.some(v => v.id === S.confirmRetire)) cur = items.find(v => v.id === S.confirmRetire);
-    return `<h3 style="margin:16px 0 6px">${L(title)} <span class="muted small">(${items.length})</span></h3>
+    return `<h3 class="sub"><span class="sub-ic">${ICON[kind]}</span>${L(title)} <span class="count">${items.length}</span></h3>
     ${items.length ? `<label class="f"><span class="sr">${esc(tx(kind === 'truck' ? 'truck_number' : 'trailer_number'))}</span>
         <select data-act="pick" data-kind="${kind}">${items.map(v => `<option value="${v.id}" ${cur && v.id === cur.id ? 'selected' : ''}>${esc(v.unit_number)}</option>`).join('')}</select></label>
       ${cur ? unitRow(cur, true) : ''}`
@@ -123,7 +123,7 @@ const vehiclesCard = () => {
       <button class="btn go" ${busyAttr()}>${L(kind === 'truck' ? 'add_truck' : 'add_trailer')}</button>
     </form>`;
   };
-  return `<div class="card"><h2>${L('trucks_trailers')}</h2>
+  return `<div class="card">${sec('truck', 'trucks_trailers')}
     ${section('truck', 'trucks', '101')}${section('trailer', 'trailers', '205')}
     </div>`;
 };
@@ -131,9 +131,24 @@ const msgBox = () => S.msg ?`<div class="alert ${S.msg.kind}" role="${S.msg.kind
 const busyAttr = () => S.busy ? 'disabled' : '';
 const submitLabel = k => S.busy ? esc(tx('working')) : L(k);
 
+/* ---------------- look ---------------- */
+const ICON = {
+  truck:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6h11v10H2zM13 9h4l4 4v3h-8"/><circle cx="6" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg>',
+  trailer:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6h17v10H1zM18 13h4"/><circle cx="6" cy="18" r="2"/><circle cx="12" cy="18" r="2"/></svg>',
+  users:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/></svg>',
+  invite:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M19 8v6M16 11h6"/></svg>',
+  owner:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V8l6-4v17M9 21V10l12 4v7M3 21h18M13 17h4"/></svg>',
+  driver:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><path d="M12 14.5V21M9.6 11.2 3.3 9.5M14.4 11.2l6.3-1.7"/></svg>',
+  globe:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>',
+  doc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>',
+};
+const sec = (icon, key, extra = '') => `<div class="sec"><span class="sec-ic">${ICON[icon]}</span><h2>${L(key)}</h2>${extra}</div>`;
+const hero = (titleKey, subKey) => `<section class="band hero"><span class="hero-ic">${ICON.truck}</span>
+  <h1>${L(titleKey)}</h1><p>${esc(tx(subKey))}</p></section>`;
+const initials = n => String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 const views = {
   loading: () => `<p class="muted">Loading…</p>`,
-  signin: () => `<h1>${L('sign_in')}</h1>${inviteNote()}${msgBox()}
+  signin: () => `${hero('sign_in', 'tagline')}${inviteNote()}${msgBox()}
     <form class="card fields" data-form="signin" novalidate>
       <label class="f">${L('email')}<input id="email" type="email" autocomplete="email" required></label>
       <label class="f">${L('password')}<input id="password" type="password" autocomplete="current-password" required></label>
@@ -141,8 +156,8 @@ const views = {
       <button type="button" class="btn quiet" data-act="go" data-v="forgot">${L('forgot_password')}</button>
     </form>
     <button class="btn" data-act="go" data-v="signup">${L('no_account')}</button>
-    <div class="card">${langSelect()}</div>`,
-  signup: () => `<h1>${L('sign_up')}</h1>${inviteNote()}${msgBox()}
+    <div class="card">${sec('globe', 'language')}${langSelect()}</div>`,
+  signup: () => `${hero('sign_up', 'tagline_signup')}${inviteNote()}${msgBox()}
     <form class="card fields" data-form="signup" novalidate>
       <label class="f">${L('email')}<input id="email" type="email" autocomplete="email" required></label>
       <label class="f">${L('password')}<input id="password" type="password" autocomplete="new-password" minlength="8" required>
@@ -152,7 +167,7 @@ const views = {
     <button class="btn" data-act="go" data-v="signin">${L('have_account')}</button>`,
   checkemail: () => `<h1>${L('welcome')}</h1><div class="alert ok">${esc(tx('check_email'))}</div>
     <button class="btn go" data-act="go" data-v="signin">${L('sign_in')}</button>`,
-  forgot: () => `<h1>${L('forgot_password')}</h1>${msgBox()}
+  forgot: () => `${hero('forgot_password', 'tagline_forgot')}${msgBox()}
     <form class="card fields" data-form="forgot" novalidate>
       <label class="f">${L('email')}<input id="email" type="email" autocomplete="email" required></label>
       <button class="btn go big" ${busyAttr()}>${submitLabel('send_reset')}</button>
@@ -164,12 +179,12 @@ const views = {
         <span class="muted small">${esc(tx('password_rule'))}</span></label>
       <button class="btn go big" ${busyAttr()}>${submitLabel('set_password')}</button>
     </form>`,
-  onboard: () => `<h1>${L('welcome')}</h1>${msgBox()}
-    <p class="muted" style="margin:0">${esc(S.session.user.email)}</p>
+  onboard: () => `<section class="band hero"><span class="hero-ic">${ICON.truck}</span><h1>${L('welcome')}</h1>
+    <p>${esc(S.session.user.email)}</p></section>${msgBox()}
     <h2>${L('choose_role')}</h2>
     <div class="choice">
-      <button data-act="role" data-r="owner" aria-pressed="${S.roleChoice === 'owner'}">${L('i_am_owner')}</button>
-      <button data-act="role" data-r="driver" aria-pressed="${S.roleChoice === 'driver'}">${L('i_am_driver')}</button>
+      <button data-act="role" data-r="owner" aria-pressed="${S.roleChoice === 'owner'}"><span class="choice-ic">${ICON.owner}</span>${L('i_am_owner')}</button>
+      <button data-act="role" data-r="driver" aria-pressed="${S.roleChoice === 'driver'}"><span class="choice-ic">${ICON.driver}</span>${L('i_am_driver')}</button>
     </div>
     ${S.roleChoice ? `<form class="card fields" data-form="${S.roleChoice === 'owner' ? 'createco' : 'join'}" novalidate>
       <label class="f">${L('full_name')}<input id="fullname" autocomplete="name" required value="${esc(S.profile && S.profile.full_name)}"></label>
@@ -186,13 +201,18 @@ const views = {
     <button class="btn quiet" data-act="signout">${L('sign_out')}</button>`,
   home: () => {
     const c = S.company;
-    const header = `<div class="row"><div><div class="muted small">${esc(S.profile && S.profile.full_name)}</div><h1>${esc(c.name)}</h1></div>
-      <span class="chip ${c.role === 'owner' ? 'ok' : ''}">${esc(tx(c.role))}</span></div>${msgBox()}`;
-    if (c.role === 'driver') return header + `<div class="card"><p style="margin:0">${esc(tx('driver_home_note'))}</p></div>
-      <div class="card">${langSelect()}</div><button class="btn quiet" data-act="signout">${L('sign_out')}</button>`;
-    return header + `
-      <div class="card"><div class="row"><h2>${L('team')}</h2></div>
-        ${S.team.filter(m => m.active || S.showRemoved).map(m => `<div class="member"><div><b>${esc(m.name)}</b>${m.me ? ' <span class="muted small">(you)</span>' : ''}<div class="muted small">${esc(tx(m.role))} · ${m.active ? '<span class="chip ok">' + esc(tx('active')) + '</span>' : '<span class="chip bad">' + esc(tx('removed')) + '</span>'}</div></div>
+    const header = `<section class="band company"><div><div class="eyebrow">${esc(tx('hello'))}, ${esc(S.profile && S.profile.full_name)}</div>
+      <h1>${esc(c.name)}</h1></div><span class="chip role">${esc(tx(c.role))}</span></section>${msgBox()}`;
+    const count = k => S.vehicles.filter(v => v.kind === k && v.active).length;
+    const stats = `<div class="stats">
+      <div><span class="stat-ic">${ICON.users}</span><b>${S.team.filter(m => m.active && m.role === 'driver').length}</b><span>${esc(tx('drivers'))}</span></div>
+      <div><span class="stat-ic">${ICON.truck}</span><b>${count('truck')}</b><span>${esc(tx('trucks'))}</span></div>
+      <div><span class="stat-ic">${ICON.trailer}</span><b>${count('trailer')}</b><span>${esc(tx('trailers'))}</span></div></div>`;
+    if (c.role === 'driver') return header + `<div class="card soon"><span class="sec-ic">${ICON.doc}</span><p style="margin:0">${esc(tx('driver_home_note'))}</p></div>
+      <div class="card">${sec('globe', 'language')}${langSelect()}</div><button class="btn quiet" data-act="signout">${L('sign_out')}</button>`;
+    return header + stats + `
+      <div class="card">${sec('users', 'team')}
+        ${S.team.filter(m => m.active || S.showRemoved).map(m => `<div class="member"><div class="who"><span class="avatar">${esc(initials(m.name))}</span><div><b>${esc(m.name)}</b>${m.me ? ' <span class="muted small">(you)</span>' : ''}<div class="muted small">${esc(tx(m.role))} · ${m.active ? '<span class="chip ok">' + esc(tx('active')) + '</span>' : '<span class="chip bad">' + esc(tx('removed')) + '</span>'}</div></div></div>
           ${m.me ? '' : (m.active
             ? (S.confirmUser === m.user_id
                 ? `<div class="btns"><button class="btn danger" data-act="remove" data-u="${m.user_id}" ${busyAttr()}>${L('yes_remove')}</button><button class="btn" data-act="noconfirm">${L('cancel')}</button></div>`
@@ -202,21 +222,21 @@ const views = {
         ${S.team.some(m => !m.active) ? `<button class="btn quiet" data-act="toggleremoved">${esc(S.showRemoved ? tx('hide_removed') : tx('show_removed') + ' (' + S.team.filter(m => !m.active).length + ')')}</button>` : ''}
       </div>
       ${vehiclesCard()}
-      <div class="card"><h2>${L('invite_driver')}</h2>
+      <div class="card">${sec('invite', 'invite_driver')}<p class="muted small" style="margin:0">${esc(tx('invite_help'))}</p>
         ${S.inviteCode ? `<div class="code" id="invcode">${esc(S.inviteCode)}</div><p class="muted small" style="margin:0">${esc(tx('invite_link_ready'))}</p>
           <button class="btn go" data-act="share">${L('share_link')}</button>
           <button class="btn" data-act="copy">${L('copy_link')}</button>`
           : `<button class="btn go" data-act="invite" ${busyAttr()}>${L('invite_driver')}</button>`}
       </div>
-      <div class="card"><p class="muted" style="margin:0">${esc(tx('owner_home_note'))}</p></div>
-      <div class="card">${langSelect()}</div>
+      <div class="card soon"><span class="sec-ic">${ICON.doc}</span><p class="muted" style="margin:0">${esc(tx('owner_home_note'))}</p></div>
+      <div class="card">${sec('globe', 'language')}${langSelect()}</div>
       <button class="btn quiet" data-act="signout">${L('sign_out')}</button>`;
   },
 };
 
 function render() {
   const el = document.getElementById('app');
-  el.innerHTML = `<header><span class="brand">Truck<b>Docs</b></span>${CFG.environment !== 'production' ? '<span class="env">Test version</span>' : ''}</header>
+  el.innerHTML = `<header><span class="brandwrap"><span class="logo">${ICON.truck}</span><span class="brand">Truck<b>Docs</b></span></span>${CFG.environment !== 'production' ? '<span class="env">Test version</span>' : ''}</header>
     <main>${views[S.view]()}</main>`;
 }
 // Values typed into the form are copied BEFORE the screen redraws (a redraw empties the boxes).
