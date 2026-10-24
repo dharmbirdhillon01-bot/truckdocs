@@ -34,9 +34,10 @@
   "trailers": "Remorques",
   "add_unit": "Ajouter",
   "rename": "Renommer",
-  "retire": "Retirer",
+  "retire": "Supprimer",
   "unit_number": "Numéro d'unité",
   "save": "Enregistrer",
   "add_truck": "Ajouter un camion",
-  "add_trailer": "Ajouter une remorque"
+  "add_trailer": "Ajouter une remorque",
+  "yes_retire": "Oui, supprimer"
 }

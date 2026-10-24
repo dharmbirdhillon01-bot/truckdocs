@@ -34,9 +34,10 @@
   "trailers": "ट्रेलर",
   "add_unit": "जोड़ें",
   "rename": "नाम बदलें",
-  "retire": "बंद करें",
+  "retire": "हटाएँ",
   "unit_number": "यूनिट नंबर",
   "save": "सेव करें",
   "add_truck": "ट्रक जोड़ें",
-  "add_trailer": "ट्रेलर जोड़ें"
+  "add_trailer": "ट्रेलर जोड़ें",
+  "yes_retire": "हाँ, हटाएँ"
 }

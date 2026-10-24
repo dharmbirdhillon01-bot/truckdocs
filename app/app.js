@@ -106,15 +106,15 @@ const unitRow = (v, solo) => {
 };
 const vehiclesCard = () => {
   // Each type: a dropdown to pick one unit (then Rename / Retire for it), and an add box under it.
-  const list = kind => S.vehicles.filter(v => v.kind === kind && (v.active || S.showRetired));
+  const list = kind => S.vehicles.filter(v => v.kind === kind && v.active);
   const section = (kind, title, ph) => {
     const items = list(kind);
     let cur = items.find(v => v.id === S.pick[kind]) || items[0];
     if (S.editVehicle && items.some(v => v.id === S.editVehicle)) cur = items.find(v => v.id === S.editVehicle);
     if (S.confirmRetire && items.some(v => v.id === S.confirmRetire)) cur = items.find(v => v.id === S.confirmRetire);
-    return `<h3 style="margin:16px 0 6px">${L(title)} <span class="muted small">(${items.filter(v => v.active).length})</span></h3>
+    return `<h3 style="margin:16px 0 6px">${L(title)} <span class="muted small">(${items.length})</span></h3>
     ${items.length ? `<label class="f"><span class="sr">${esc(tx(kind === 'truck' ? 'truck_number' : 'trailer_number'))}</span>
-        <select data-act="pick" data-kind="${kind}">${items.map(v => `<option value="${v.id}" ${cur && v.id === cur.id ? 'selected' : ''}>${esc(v.unit_number)}${v.active ? '' : ' — ' + esc(tx('retired'))}</option>`).join('')}</select></label>
+        <select data-act="pick" data-kind="${kind}">${items.map(v => `<option value="${v.id}" ${cur && v.id === cur.id ? 'selected' : ''}>${esc(v.unit_number)}</option>`).join('')}</select></label>
       ${cur ? unitRow(cur, true) : ''}`
       : `<p class="muted small" style="margin:0">${esc(tx('none_yet'))}</p>`}
     <form class="addrow" data-form="addunit" data-kind="${kind}" novalidate>
@@ -123,10 +123,8 @@ const vehiclesCard = () => {
       <button class="btn go" ${busyAttr()}>${L(kind === 'truck' ? 'add_truck' : 'add_trailer')}</button>
     </form>`;
   };
-  const retiredCount = S.vehicles.filter(v => !v.active).length;
   return `<div class="card"><h2>${L('trucks_trailers')}</h2>
     ${section('truck', 'trucks', '101')}${section('trailer', 'trailers', '205')}
-    ${retiredCount ? `<button class="btn quiet" data-act="toggleretired">${esc(S.showRetired ? tx('hide_retired') : tx('show_retired') + ' (' + retiredCount + ')')}</button>` : ''}
     </div>`;
 };
 const msgBox = () => S.msg ?`<div class="alert ${S.msg.kind}" role="${S.msg.kind === 'bad' ? 'alert' : 'status'}">${esc(S.msg.text)}</div>` : '';
