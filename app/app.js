@@ -157,14 +157,20 @@ function render() {
   el.innerHTML = `<header><span class="brand">Truck<b>Docs</b></span>${CFG.environment !== 'production' ? '<span class="env">Test version</span>' : ''}</header>
     <main>${views[S.view]()}</main>`;
 }
-const val = id => (document.getElementById(id) || {}).value || '';
+// Values typed into the form are copied BEFORE the screen redraws (a redraw empties the boxes).
+let typed = {};
+const snapshot = () => { typed = {}; app.querySelectorAll('input, select, textarea').forEach(el => { if (el.id) typed[el.id] = el.value; }); };
+const val = id => (id in typed ? typed[id] : (document.getElementById(id) || {}).value) || '';
+// After a redraw, put back what the person typed (never the password, for safety).
+const refill = () => Object.entries(typed).forEach(([id, v]) => { const el = document.getElementById(id); if (el && el.type !== 'password' && !el.value) el.value = v; });
 
 /* ---------------- actions ---------------- */
 async function run(fn) {
   if (S.busy) return;
+  snapshot();
   S.busy = true; setMsg(null); render();
   try { await fn(); } catch (err) { setMsg('bad', friendly(err)); }
-  finally { S.busy = false; render(); }
+  finally { S.busy = false; render(); refill(); typed = {}; }
 }
 
 const forms = {
