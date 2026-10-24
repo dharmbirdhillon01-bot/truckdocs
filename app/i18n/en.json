@@ -74,5 +74,9 @@
   "unit_retired": "Unit retired. Its history is kept.",
   "unit_back": "Unit is back in use.",
   "saved": "Saved.",
-  "not_saved": "Not saved. Please try again."
+  "not_saved": "Not saved. Please try again.",
+  "add_truck": "Add truck",
+  "add_trailer": "Add trailer",
+  "truck_number": "Truck number",
+  "trailer_number": "Trailer number"
 }

@@ -36,5 +36,7 @@
   "rename": "Renommer",
   "retire": "Retirer",
   "unit_number": "Numéro d'unité",
-  "save": "Enregistrer"
+  "save": "Enregistrer",
+  "add_truck": "Ajouter un camion",
+  "add_trailer": "Ajouter une remorque"
 }

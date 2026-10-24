@@ -106,17 +106,19 @@ const unitRow = v => {
 };
 const vehiclesCard = () => {
   const show = kind => S.vehicles.filter(v => v.kind === kind && (v.active || S.showRetired));
-  const section = (kind, title) => `<h3 style="margin:14px 0 4px">${L(title)}</h3>
-    ${show(kind).map(unitRow).join('') || `<p class="muted small" style="margin:0">${esc(tx('none_yet'))}</p>`}`;
+  // Each list has its own add box right under it: "Add truck" under Trucks, "Add trailer" under Trailers.
+  const section = (kind, title, ph) => `<h3 style="margin:16px 0 4px">${L(title)}</h3>
+    ${show(kind).map(unitRow).join('') || `<p class="muted small" style="margin:0">${esc(tx('none_yet'))}</p>`}
+    <form class="addrow" data-form="addunit" data-kind="${kind}" novalidate>
+      <input id="unitnum-${kind}" maxlength="20" autocomplete="off" autocapitalize="characters" required
+        placeholder="${ph}" aria-label="${esc(tx(kind === 'truck' ? 'truck_number' : 'trailer_number'))}">
+      <button class="btn go" ${busyAttr()}>${L(kind === 'truck' ? 'add_truck' : 'add_trailer')}</button>
+    </form>`;
   const retiredCount = S.vehicles.filter(v => !v.active).length;
   return `<div class="card"><h2>${L('trucks_trailers')}</h2>
-    ${section('truck', 'trucks')}${section('trailer', 'trailers')}
+    ${section('truck', 'trucks', '101')}${section('trailer', 'trailers', '205')}
     ${retiredCount ? `<button class="btn quiet" data-act="toggleretired">${esc(S.showRetired ? tx('hide_retired') : tx('show_retired') + ' (' + retiredCount + ')')}</button>` : ''}
-    <form class="fields" data-form="addunit" novalidate style="margin-top:12px">
-      <label class="f">${L('unit_type')}<select id="unitkind"><option value="truck">${esc(tx('truck'))}</option><option value="trailer">${esc(tx('trailer'))}</option></select></label>
-      <label class="f">${L('unit_number')}<input id="unitnum" maxlength="20" autocomplete="off" autocapitalize="characters" required placeholder="101"></label>
-      <button class="btn go" ${busyAttr()}>${L('add_unit')}</button>
-    </form></div>`;
+    </div>`;
 };
 const msgBox = () => S.msg ?`<div class="alert ${S.msg.kind}" role="${S.msg.kind === 'bad' ? 'alert' : 'status'}">${esc(S.msg.text)}</div>` : '';
 const busyAttr = () => S.busy ? 'disabled' : '';
@@ -257,8 +259,9 @@ const forms = {
     if (error) throw error;
     await loadContext();
   },
-  async addunit() {
-    const num = val('unitnum').trim(), kind = val('unitkind');
+  async addunit(form) {
+    const kind = form.dataset.kind === 'trailer' ? 'trailer' : 'truck';
+    const num = val('unitnum-' + kind).trim();
     if (!num) throw new Error(tx('unit_number_needed'));
     const { error } = await sb.from('vehicles').insert({ company_id: S.company.id, kind, unit_number: num });
     if (error) throw error;
@@ -285,7 +288,7 @@ const forms = {
 const app = document.getElementById('app');
 app.addEventListener('submit', e => {
   const f = e.target.closest('form[data-form]'); if (!f) return;
-  e.preventDefault(); run(forms[f.dataset.form]);
+  e.preventDefault(); run(() => forms[f.dataset.form](f));
 });
 app.addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b || b.tagName === 'SELECT') return;
