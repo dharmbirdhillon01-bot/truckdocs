@@ -273,6 +273,16 @@ const forms = {
     const kind = form.dataset.kind === 'trailer' ? 'trailer' : 'truck';
     const num = val('unitnum-' + kind).trim();
     if (!num) throw new Error(tx('unit_number_needed'));
+    const norm = num.toUpperCase().replace(/\s+/g, ' ');
+    const same = S.vehicles.find(v => v.kind === kind && v.unit_number === norm);
+    if (same && same.active) { S.pick[kind] = same.id; throw new Error(tx('unit_exists')); }
+    if (same) {   // it was retired: bring it back instead of refusing
+      const { data, error } = await sb.from('vehicles').update({ active: true }).eq('id', same.id).select('id');
+      if (error) throw error;
+      if (!data || !data.length) throw new Error(tx('not_saved'));
+      await loadVehicles(); S.pick[kind] = same.id;
+      return setMsg('ok', tx('unit_back_number').replace('{n}', norm));
+    }
     const { error } = await sb.from('vehicles').insert({ company_id: S.company.id, kind, unit_number: num });
     if (error) throw error;
     await loadVehicles();

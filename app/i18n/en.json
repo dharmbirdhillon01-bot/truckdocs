@@ -63,11 +63,11 @@
   "bring_back": "Bring back",
   "retired": "Retired",
   "save": "Save",
-  "none_yet": "None added yet.",
+  "none_yet": "None added yet. Type a number below and tap Add.",
   "show_retired": "Show retired",
   "hide_retired": "Hide retired",
   "confirm_retire": "Retire this unit? Drivers won't see it in lists. Its history and old documents stay.",
-  "unit_exists": "That number is already in your list.",
+  "unit_exists": "That number is already in your list. It is now selected above.",
   "unit_number_needed": "Type a unit number.",
   "truck_added": "Truck {n} added.",
   "trailer_added": "Trailer {n} added.",
@@ -80,5 +80,6 @@
   "truck_number": "Truck number",
   "trailer_number": "Trailer number",
   "show_removed": "Show removed drivers",
-  "hide_removed": "Hide removed drivers"
+  "hide_removed": "Hide removed drivers",
+  "unit_back_number": "{n} was retired. It is back in use now."
 }
