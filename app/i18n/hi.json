@@ -39,5 +39,7 @@
   "save": "सेव करें",
   "add_truck": "ट्रक जोड़ें",
   "add_trailer": "ट्रेलर जोड़ें",
-  "yes_retire": "हाँ, हटाएँ"
+  "yes_retire": "हाँ, हटाएँ",
+  "truck": "ट्रक",
+  "trailer": "ट्रेलर"
 }

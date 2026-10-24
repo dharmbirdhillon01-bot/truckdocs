@@ -37,7 +37,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 /* ---------------- state ---------------- */
 const S = { view: 'loading', session: null, profile: null, memberships: [], company: null, team: [],
             msg: null, busy: false, inviteCode: null, confirmUser: null, roleChoice: null,
-            vehicles: [], editVehicle: null, confirmRetire: null, showRetired: false, showRemoved: false, pick: {} };
+            vehicles: [], editVehicle: null, confirmRetire: null, showRetired: false, showRemoved: false, pick: {}, unitAction: {} };
 const setMsg = (kind, text) => { S.msg = text ? { kind, text } : null; };
 function friendly(err) {
   const m = (err && (err.message || err.error_description)) || tx('error_generic');
@@ -107,21 +107,34 @@ const unitRow = (v, solo) => {
 const vehiclesCard = () => {
   // Each type: a dropdown to pick one unit (then Rename / Retire for it), and an add box under it.
   const list = kind => S.vehicles.filter(v => v.kind === kind && v.active);
+  // One line per type: "Truck [dropdown]". The dropdown lists the numbers plus Add new / Rename / Delete.
   const section = (kind, title, ph) => {
     const items = list(kind);
-    let cur = items.find(v => v.id === S.pick[kind]) || items[0];
-    if (S.editVehicle && items.some(v => v.id === S.editVehicle)) cur = items.find(v => v.id === S.editVehicle);
-    if (S.confirmRetire && items.some(v => v.id === S.confirmRetire)) cur = items.find(v => v.id === S.confirmRetire);
-    return `<h3 class="sub"><span class="sub-ic">${ICON[kind]}</span>${L(title)} <span class="count">${items.length}</span></h3>
-    ${items.length ? `<label class="f"><span class="sr">${esc(tx(kind === 'truck' ? 'truck_number' : 'trailer_number'))}</span>
-        <select data-act="pick" data-kind="${kind}">${items.map(v => `<option value="${v.id}" ${cur && v.id === cur.id ? 'selected' : ''}>${esc(v.unit_number)}</option>`).join('')}</select></label>
-      ${cur ? unitRow(cur, true) : ''}`
-      : `<p class="muted small" style="margin:0">${esc(tx('none_yet'))}</p>`}
-    <form class="addrow" data-form="addunit" data-kind="${kind}" novalidate>
-      <input id="unitnum-${kind}" maxlength="20" autocomplete="off" autocapitalize="characters" required
-        placeholder="${ph}" aria-label="${esc(tx(kind === 'truck' ? 'truck_number' : 'trailer_number'))}">
-      <button class="btn go" ${busyAttr()}>${L(kind === 'truck' ? 'add_truck' : 'add_trailer')}</button>
-    </form>`;
+    const cur = items.find(v => v.id === S.pick[kind]) || items[0];
+    const A = S.unitAction[kind];   // 'add' | 'rename' | 'delete' | undefined
+    const word = tx(kind);          // Truck / Trailer
+    const opts = (items.length
+        ? items.map(v => `<option value="${v.id}" ${cur && v.id === cur.id ? 'selected' : ''}>${esc(v.unit_number)}</option>`).join('')
+        : `<option value="" selected disabled>${esc(tx('none_pick'))}</option>`)
+      + `<option value="__add">＋ ${esc(tx(kind === 'truck' ? 'add_truck' : 'add_trailer'))}</option>`
+      + (cur ? `<option value="__rename">✎ ${esc(tx('rename'))} ${esc(cur.unit_number)}</option>
+                <option value="__delete">✕ ${esc(tx('retire'))} ${esc(cur.unit_number)}</option>` : '');
+    let panel = '';
+    if (A === 'add') panel = `<form class="addrow" data-form="addunit" data-kind="${kind}" novalidate>
+        <input id="unitnum-${kind}" maxlength="20" autocomplete="off" autocapitalize="characters" required placeholder="${ph}"
+          aria-label="${esc(tx(kind === 'truck' ? 'truck_number' : 'trailer_number'))}">
+        <button class="btn go" ${busyAttr()}>${L('add_unit')}</button>
+        <button type="button" class="btn quiet" data-act="unitcancel" data-kind="${kind}">${esc(tx('cancel'))}</button></form>`;
+    if (A === 'rename' && cur) panel = `<form class="addrow" data-form="renameunit" data-id="${cur.id}" data-kind="${kind}" novalidate>
+        <input id="unitname" value="${esc(cur.unit_number)}" maxlength="20" required aria-label="${esc(tx('unit_number'))}">
+        <button class="btn go" ${busyAttr()}>${L('save')}</button>
+        <button type="button" class="btn quiet" data-act="unitcancel" data-kind="${kind}">${esc(tx('cancel'))}</button></form>`;
+    if (A === 'delete' && cur) panel = `<div class="alert warn confirm"><b>${esc(word)} ${esc(cur.unit_number)}</b>
+        <span class="small">${esc(tx('confirm_retire'))}</span>
+        <div class="btns two"><button class="btn danger" data-act="retire" data-id="${cur.id}" data-kind="${kind}" ${busyAttr()}>${L('yes_retire')}</button>
+        <button class="btn" data-act="unitcancel" data-kind="${kind}">${L('cancel')}</button></div></div>`;
+    return `<div class="unitline"><span class="unitlbl"><span class="sub-ic">${ICON[kind]}</span>${L(kind)}</span>
+      <select data-act="pick" data-kind="${kind}" aria-label="${esc(word)}">${opts}</select></div>${panel}`;
   };
   return `<div class="card">${sec('truck', 'trucks_trailers')}
     ${section('truck', 'trucks', '101')}${section('trailer', 'trailers', '205')}
@@ -298,7 +311,7 @@ const forms = {
       const { data, error } = await sb.from('vehicles').update({ active: true }).eq('id', same.id).select('id');
       if (error) throw error;
       if (!data || !data.length) throw new Error(tx('not_saved'));
-      await loadVehicles(); S.pick[kind] = same.id;
+      await loadVehicles(); S.pick[kind] = same.id; S.unitAction[kind] = null;
       return setMsg('ok', tx('unit_back_number').replace('{n}', norm));
     }
     const { error } = await sb.from('vehicles').insert({ company_id: S.company.id, kind, unit_number: num });
@@ -306,15 +319,16 @@ const forms = {
     await loadVehicles();
     const added = S.vehicles.find(v => v.kind === kind && v.unit_number === num.toUpperCase().replace(/\s+/g, ' '));
     if (added) S.pick[kind] = added.id;   // show the new one in the dropdown
+    S.unitAction[kind] = null;
     setMsg('ok', tx(kind === 'truck' ? 'truck_added' : 'trailer_added').replace('{n}', num.toUpperCase()));
   },
-  async renameunit() {
+  async renameunit(form) {
     const num = val('unitname').trim();
     if (!num) throw new Error(tx('unit_number_needed'));
-    const { data, error } = await sb.from('vehicles').update({ unit_number: num }).eq('id', S.editVehicle).select('id');
+    const { data, error } = await sb.from('vehicles').update({ unit_number: num }).eq('id', form.dataset.id).select('id');
     if (error) throw error;
     if (!data || !data.length) throw new Error(tx('not_saved'));   // never claim success the server didn't confirm
-    S.editVehicle = null; await loadVehicles(); setMsg('ok', tx('saved'));
+    S.unitAction[form.dataset.kind] = null; await loadVehicles(); setMsg('ok', tx('saved'));
   },
   async join() {
     const { error } = await sb.rpc('accept_invite', { p_code: val('code').trim(), p_full_name: val('fullname').trim(), p_language: lang });
@@ -352,6 +366,7 @@ app.addEventListener('click', e => {
   }
   if (a === 'editunit') { S.editVehicle = b.dataset.id; S.confirmRetire = null; setMsg(null); render(); }
   if (a === 'canceledit') { S.editVehicle = null; render(); }
+  if (a === 'unitcancel') { S.unitAction[b.dataset.kind] = null; render(); }
   if (a === 'askretire') { S.confirmRetire = b.dataset.id; S.editVehicle = null; render(); }
   if (a === 'noretire') { S.confirmRetire = null; render(); }
   if (a === 'toggleremoved') { S.showRemoved = !S.showRemoved; render(); }
@@ -360,7 +375,8 @@ app.addEventListener('click', e => {
     const { data, error } = await sb.from('vehicles').update({ active: a === 'unretire' }).eq('id', b.dataset.id).select('id');
     if (error) throw error;
     if (!data || !data.length) throw new Error(tx('not_saved'));
-    S.confirmRetire = null; await loadVehicles(); setMsg('ok', tx(a === 'retire' ? 'unit_retired' : 'unit_back'));
+    S.confirmRetire = null; if (b.dataset.kind) { S.unitAction[b.dataset.kind] = null; S.pick[b.dataset.kind] = null; }
+    await loadVehicles(); setMsg('ok', tx(a === 'retire' ? 'unit_retired' : 'unit_back'));
   });
   if (a === 'askremove') { S.confirmUser = b.dataset.u; render(); }
   if (a === 'noconfirm') { S.confirmUser = null; render(); }
@@ -371,7 +387,16 @@ app.addEventListener('click', e => {
   });
 });
 app.addEventListener('change', async e => {
-  if (e.target.dataset.act === 'pick') { S.pick[e.target.dataset.kind] = e.target.value; S.editVehicle = null; S.confirmRetire = null; return render(); }
+  if (e.target.dataset.act === 'pick') {
+    const k = e.target.dataset.kind, v = e.target.value; setMsg(null);
+    if (v === '__add') S.unitAction[k] = 'add';
+    else if (v === '__rename') S.unitAction[k] = 'rename';
+    else if (v === '__delete') S.unitAction[k] = 'delete';
+    else { S.pick[k] = v; S.unitAction[k] = null; }
+    render();
+    const box = document.getElementById(S.unitAction[k] === 'rename' ? 'unitname' : 'unitnum-' + k); if (box) box.focus();
+    return;
+  }
   if (e.target.dataset.act !== 'lang') return;
   lang = e.target.value; localStorage.setItem('td_lang', lang); await loadLang(SECOND[lang]);
   if (S.session && S.profile) {

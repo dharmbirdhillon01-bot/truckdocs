@@ -128,3 +128,9 @@ main{gap:14px}
 .band.company{padding-bottom:46px}
 .band + .stats{margin-top:-40px}
 .band + .alert{margin-top:2px}
+.unitline{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;margin-top:6px}
+.unitlbl{display:flex;align-items:center;gap:8px;font-family:var(--f-display);font-weight:700;font-size:18px;min-width:92px}
+.unitline select{padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface);font-size:17px;font-weight:600;width:100%;min-width:0}
+.addrow{grid-template-columns:1fr auto auto}
+.confirm{display:grid;gap:8px}
+.btns.two{grid-template-columns:1fr 1fr}

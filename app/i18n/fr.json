@@ -39,5 +39,7 @@
   "save": "Enregistrer",
   "add_truck": "Ajouter un camion",
   "add_trailer": "Ajouter une remorque",
-  "yes_retire": "Oui, supprimer"
+  "yes_retire": "Oui, supprimer",
+  "truck": "Camion",
+  "trailer": "Remorque"
 }

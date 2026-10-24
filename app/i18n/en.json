@@ -87,5 +87,6 @@
   "tagline_forgot": "We'll email you a link to set a new password.",
   "hello": "Hello",
   "drivers": "Drivers",
-  "invite_help": "Send a link by WhatsApp or text. Your driver taps it and joins your company."
+  "invite_help": "Send a link by WhatsApp or text. Your driver taps it and joins your company.",
+  "none_pick": "None yet — tap to add"
 }
