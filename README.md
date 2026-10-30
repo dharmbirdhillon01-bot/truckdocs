@@ -1,6 +1,6 @@
 # TruckDocs
 
-Phase 1 foundation (approved Oct 23, 2026).
+Phase 1 foundation (approved Oct 23, 2026). Step 7 (send paperwork) added Oct 30, 2026 — results in `tests/results_step7.md`.
 
 - `supabase/migrations/0001_foundation.sql` — tables, Row Level Security, storage rules, permanent version history, server-side actions.
 - `tests/security_tests.py` — 59 permission tests run from authorized and unauthorized accounts. Results in `tests/results.md`.

@@ -1,4 +1,4 @@
-/* TruckDocs — Phase 1 step 5: accounts and access.
+/* TruckDocs — Phase 1 steps 5–7: accounts, trucks/trailers, and sending paperwork.
  * Every permission is enforced by the database (Row Level Security + server functions).
  * This screen code only shows what the server allows and reports what the server says.
  * It never shows success before the server confirms it. */
@@ -37,7 +37,9 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 /* ---------------- state ---------------- */
 const S = { view: 'loading', session: null, profile: null, memberships: [], company: null, team: [],
             msg: null, busy: false, inviteCode: null, confirmUser: null, roleChoice: null,
-            vehicles: [], editVehicle: null, confirmRetire: null, showRetired: false, showRemoved: false, pick: {}, unitAction: {} };
+            vehicles: [], editVehicle: null, confirmRetire: null, showRetired: false, showRemoved: false, pick: {}, unitAction: {},
+            docs: [], send: null, files: {}, openDoc: null, docFilter: 'all',
+            dpick: (() => { try { return JSON.parse(localStorage.getItem('td_dpick')) || {}; } catch { return {}; } })() };
 const setMsg = (kind, text) => { S.msg = text ? { kind, text } : null; };
 function friendly(err) {
   const m = (err && (err.message || err.error_description)) || tx('error_generic');
@@ -61,7 +63,11 @@ async function loadContext() {
   if (prof && prof.language && prof.language !== lang) { lang = prof.language; localStorage.setItem('td_lang', lang); await loadLang(SECOND[lang]); }
   const active = S.memberships.find(m => m.active);
   S.company = active ? { id: active.company_id, name: active.companies && active.companies.name, role: active.role } : null;
-  if (S.company && S.company.role === 'owner') { await loadTeam(); await loadVehicles(); }
+  if (S.company) {
+    await loadVehicles();                                   // drivers can see units (database allows read only)
+    if (S.company.role === 'owner') await loadTeam();
+    await loadDocs();
+  }
   S.view = S.company ? 'home' : (S.memberships.some(m => !m.active) ? 'removed' : 'onboard');
   if (S.view === 'onboard' && pendingInvite()) S.roleChoice = 'driver';
 }
@@ -71,6 +77,18 @@ async function loadVehicles() {
   if (error) throw error;
   // numbers in natural order: 9 before 10
   S.vehicles = (data || []).sort((a, b) => a.unit_number.localeCompare(b.unit_number, undefined, { numeric: true }));
+}
+// Papers. Owners get every paper in the company; drivers get only their own (the database decides this, not the app).
+async function loadDocs() {
+  const { data, error } = await sb.from('documents')
+    .select('id, type, truck_id, trailer_id, details, created_by, created_at, current_version, document_versions(version_no, storage_path, mime_type, size_bytes)')
+    .eq('company_id', S.company.id).is('trashed_at', null)
+    .order('created_at', { ascending: false }).limit(100);
+  if (error) throw error;
+  S.docs = (data || []).map(d => {
+    const vs = (d.document_versions || []).sort((a, b) => b.version_no - a.version_no);
+    return { ...d, file: vs[0] || null };
+  });
 }
 async function loadTeam() {
   const { data: mems, error } = await sb.from('memberships').select('user_id, role, active, created_at')
@@ -159,6 +177,87 @@ const sec = (icon, key, extra = '') => `<div class="sec"><span class="sec-ic">${
 const hero = (titleKey, subKey) => `<section class="band hero"><span class="hero-ic">${ICON.truck}</span>
   <h1>${L(titleKey)}</h1><p>${esc(tx(subKey))}</p></section>`;
 const initials = n => String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+
+/* ---------------- paperwork (step 7) ---------------- */
+const DOC_TYPES = ['fuel', 'load', 'expense', 'invoice'];
+const DOC_IC = { fuel: '⛽', load: '📦', expense: '🧾', invoice: '💵' };
+const unitName = id => { const v = S.vehicles.find(x => x.id === id); return v ? v.unit_number : ''; };
+const whenText = t => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+const sizeText = b => b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+const unitPicker = kind => {
+  const items = S.vehicles.filter(v => v.kind === kind && v.active);
+  const cur = items.find(v => v.id === S.dpick[kind]);
+  return `<div class="unitline"><span class="unitlbl"><span class="sub-ic">${ICON[kind]}</span>${L(kind)}</span>
+    <select data-act="dpick" data-kind="${kind}" aria-label="${esc(tx(kind))}">
+      <option value="" ${cur ? '' : 'selected'}>${esc(items.length ? tx('none_chosen') : tx('none_yet'))}</option>
+      ${items.map(v => `<option value="${v.id}" ${cur && cur.id === v.id ? 'selected' : ''}>${esc(v.unit_number)}</option>`).join('')}
+    </select></div>`;
+};
+const docRow = (d, showDriver) => {
+  const driver = showDriver ? ((S.team.find(m => m.user_id === d.created_by) || {}).name || '—') : '';
+  const units = [d.truck_id && tx('truck') + ' ' + unitName(d.truck_id), d.trailer_id && tx('trailer') + ' ' + unitName(d.trailer_id)].filter(Boolean).join(' · ');
+  const det = d.details || {};
+  const extra = [det.date, det.litres && det.litres + ' L', (det.from || det.to) && [det.from, det.to].filter(Boolean).join(' → '), det.note].filter(Boolean).join(' · ');
+  const sent = d.current_version > 0 && d.file;
+  const f = sent && S.files[d.file.storage_path];
+  const open = S.openDoc === d.id;
+  return `<div class="docrow"><span class="doc-ic" aria-hidden="true">${DOC_IC[d.type]}</span>
+    <div class="doc-main"><b>${L('doc_' + d.type)}</b>
+      <div class="muted small">${showDriver ? esc(driver) + ' · ' : ''}${esc(whenText(d.created_at))}${units ? ' · ' + esc(units) : ''}</div>
+      ${extra ? `<div class="small">${esc(extra)}</div>` : ''}
+      <div>${sent ? `<span class="chip ok">✓ ${L('sent_status')}</span>` : `<span class="chip warn">${L('not_finished')}</span>`}</div>
+      ${open && f ? `<div class="preview">${/^image\//.test(f.blob.type) ? `<img src="${f.url}" alt="">` : ''}
+        <div class="btns two"><a class="btn" href="${f.url}" target="_blank" rel="noopener">${L('view_full')}</a>
+        <button class="btn go" data-act="sharedoc" data-id="${d.id}">${L('share')}</button></div>
+        <button class="btn quiet" data-act="closedoc">${esc(tx('close'))}</button></div>` : ''}
+    </div>
+    <div class="doc-act">${sent
+      ? (open && f ? '' : `<button class="btn" data-act="opendoc" data-id="${d.id}" ${busyAttr()}>${L('open')}</button>`)
+      : (d.created_by === S.session.user.id ? `<button class="btn go" data-act="finishdoc" data-id="${d.id}">${L('finish')}</button>` : '')}</div>
+  </div>`;
+};
+const docList = (showDriver) => {
+  const list = S.docs.filter(d => S.docFilter === 'all' || d.type === S.docFilter);
+  return `<label class="f"><span class="sr">${esc(tx('show'))}</span><select data-act="docfilter">
+      <option value="all">${esc(tx('all_types'))}</option>
+      ${DOC_TYPES.map(t => `<option value="${t}" ${S.docFilter === t ? 'selected' : ''}>${esc(tx('doc_' + t))}</option>`).join('')}</select></label>
+    ${list.length ? list.map(d => docRow(d, showDriver)).join('') : `<p class="muted" style="margin:0">${esc(tx('no_papers'))}</p>`}
+    ${S.docs.length >= 100 ? `<p class="muted small" style="margin:0">${esc(tx('showing_latest'))}</p>` : ''}`;
+};
+const driverHome = () => `
+  <div class="card">${sec('truck', 'trucks_trailers')}${unitPicker('truck')}${unitPicker('trailer')}
+    ${S.vehicles.some(v => v.active) ? '' : `<p class="muted small" style="margin:0">${esc(tx('no_trucks_driver'))}</p>`}</div>
+  <div class="card">${sec('doc', 'send_paperwork')}
+    <div class="typegrid">${DOC_TYPES.map(t => `<button class="typebtn" data-act="newdoc" data-t="${t}"><span class="type-ic" aria-hidden="true">${DOC_IC[t]}</span>${L('doc_' + t)}</button>`).join('')}</div></div>
+  <div class="card">${sec('doc', 'my_papers')}${docList(false)}</div>`;
+const sendView = () => {
+  const s = S.send, d = s.details;
+  const units = [S.dpick.truck && tx('truck') + ' ' + unitName(S.dpick.truck), S.dpick.trailer && tx('trailer') + ' ' + unitName(S.dpick.trailer)].filter(Boolean).join(' · ');
+  const isPdf = s.pages.length === 1 && s.pages[0].pdf;
+  const picker = (key, capture) => `<label class="btn ${s.pages.length ? '' : 'go'} big filebtn">${L(key)}
+      <input type="file" data-act="addfile" ${capture ? 'accept="image/*" capture="environment"' : 'accept="image/*,application/pdf"'} hidden></label>`;
+  return `<section class="band hero"><span class="hero-ic" aria-hidden="true" style="font-size:30px">${DOC_IC[s.type]}</span>
+      <h1>${L('doc_' + s.type)}</h1><p>${esc(units || tx('no_unit_chosen'))}</p></section>${msgBox()}
+    <div class="card">
+      ${s.pages.length ? `<div class="pages">${s.pages.map((p, i) => `<figure>${p.pdf ? `<div class="pdfthumb">PDF</div>` : `<img src="${p.url}" alt="${esc(tx('page'))} ${i + 1}">`}
+          <figcaption>${esc(tx('page'))} ${i + 1}</figcaption>
+          <button class="btn quiet" data-act="rmpage" data-i="${i}" aria-label="${esc(tx('remove_page'))} ${i + 1}">✕ ${esc(tx('remove_page'))}</button></figure>`).join('')}</div>
+        <p class="muted small" style="margin:0">${esc(tx('photo_check'))}</p>` : `<p class="muted" style="margin:0">${esc(tx(s.docId ? 'finish_help' : 'capture_help'))}</p>`}
+      ${isPdf ? '' : picker(s.pages.length ? 'add_page' : 'take_photo', true)}
+      ${s.pages.length ? '' : picker('choose_file', false)}
+    </div>
+    <details class="card" ${s.openDetails ? 'open' : ''}><summary>${L('details_optional')}</summary>
+      <div class="fields">
+        <label class="f">${L('doc_date')}<input type="date" data-det="date" value="${esc(d.date)}"></label>
+        ${s.type === 'fuel' ? `<label class="f">${L('litres')}<input type="number" inputmode="decimal" min="0" step="0.01" data-det="litres" value="${esc(d.litres)}"></label>` : ''}
+        ${s.type === 'load' ? `<label class="f">${L('from_place')}<input data-det="from" maxlength="80" value="${esc(d.from)}"></label>
+          <label class="f">${L('to_place')}<input data-det="to" maxlength="80" value="${esc(d.to)}"></label>` : ''}
+        <label class="f">${L('note')}<input data-det="note" maxlength="200" value="${esc(d.note)}"></label>
+      </div></details>
+    ${s.status ? `<div class="alert ok" role="status">${esc(s.status)}</div>` : ''}
+    <button class="btn go big" data-act="senddoc" ${s.pages.length && !S.busy ? '' : 'disabled'}>${S.busy ? esc(tx('sending')) : L('send')}</button>
+    <button class="btn quiet" data-act="cancelsend" ${busyAttr()}>${L('cancel')}</button>`;
+};
 const views = {
   loading: () => `<p class="muted">Loading…</p>`,
   signin: () => `${hero('sign_in', 'tagline')}${inviteNote()}${msgBox()}
@@ -221,7 +320,7 @@ const views = {
       <div><span class="stat-ic">${ICON.users}</span><b>${S.team.filter(m => m.active && m.role === 'driver').length}</b><span>${esc(tx('drivers'))}</span></div>
       <div><span class="stat-ic">${ICON.truck}</span><b>${count('truck')}</b><span>${esc(tx('trucks'))}</span></div>
       <div><span class="stat-ic">${ICON.trailer}</span><b>${count('trailer')}</b><span>${esc(tx('trailers'))}</span></div></div>`;
-    if (c.role === 'driver') return header + `<div class="card soon"><span class="sec-ic">${ICON.doc}</span><p style="margin:0">${esc(tx('driver_home_note'))}</p></div>
+    if (c.role === 'driver') return header + driverHome() + `
       <div class="card">${sec('globe', 'language')}${langSelect()}</div><button class="btn quiet" data-act="signout">${L('sign_out')}</button>`;
     return header + stats + `
       <div class="card">${sec('users', 'team')}
@@ -241,10 +340,11 @@ const views = {
           <button class="btn" data-act="copy">${L('copy_link')}</button>`
           : `<button class="btn go" data-act="invite" ${busyAttr()}>${L('invite_driver')}</button>`}
       </div>
-      <div class="card soon"><span class="sec-ic">${ICON.doc}</span><p class="muted" style="margin:0">${esc(tx('owner_home_note'))}</p></div>
+      <div class="card">${sec('doc', 'papers_inbox', `<button class="btn quiet" style="width:auto;margin-left:auto" data-act="refreshdocs" ${busyAttr()}>↻ ${esc(tx('refresh'))}</button>`)}${docList(true)}</div>
       <div class="card">${sec('globe', 'language')}${langSelect()}</div>
       <button class="btn quiet" data-act="signout">${L('sign_out')}</button>`;
   },
+  send: sendView,
 };
 
 function render() {
@@ -258,6 +358,117 @@ const snapshot = () => { typed = {}; app.querySelectorAll('input, select, textar
 const val = id => (id in typed ? typed[id] : (document.getElementById(id) || {}).value) || '';
 // After a redraw, put back what the person typed (never the password, for safety).
 const refill = () => Object.entries(typed).forEach(([id, v]) => { const el = document.getElementById(id); if (el && el.type !== 'password' && !el.value) el.value = v; });
+
+/* ---------------- paperwork logic (step 7) ---------------- */
+const MAX_BYTES = 15 * 1024 * 1024;          // safety limit per paper (phone photos are shrunk well below this)
+const today = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+// Shrink a phone photo to a clear but small JPEG (long side 2200 px). If the phone can't decode it, keep the original.
+async function shrinkPhoto(file) {
+  try {
+    const url = URL.createObjectURL(file);
+    const img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = url; });
+    const k = Math.min(1, 2200 / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(url);
+    const blob = await new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.82));
+    if (blob && blob.size) return { blob, w: c.width, h: c.height };
+  } catch { /* fall through */ }
+  return { blob: file, w: 0, h: 0 };
+}
+let jsPdfReady = null;
+const loadJsPdf = () => jsPdfReady || (jsPdfReady = new Promise((ok, bad) => {
+  const el = document.createElement('script');
+  el.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+  el.onload = () => (window.jspdf ? ok(window.jspdf.jsPDF) : bad(new Error(tx('pdf_failed'))));
+  el.onerror = () => { jsPdfReady = null; bad(new Error(tx('pdf_failed'))); };
+  document.head.appendChild(el);
+}));
+// One page → the photo itself. Several pages → one PDF, one page per photo. A chosen PDF goes as it is.
+async function buildFile(pages) {
+  if (pages.length === 1) {
+    const p = pages[0];
+    return { blob: p.blob, mime: p.blob.type || (p.pdf ? 'application/pdf' : 'image/jpeg'), ext: p.pdf ? 'pdf' : 'jpg' };
+  }
+  const JsPDF = await loadJsPdf();
+  let doc = null;
+  for (const p of pages) {
+    const w = 612, h = p.w && p.h ? Math.round(612 * p.h / p.w) : 792;   // letter width, keep the photo's shape
+    const data = await new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = bad; r.readAsDataURL(p.blob); });
+    if (!doc) doc = new JsPDF({ unit: 'pt', format: [w, h], orientation: w > h ? 'l' : 'p' });
+    else doc.addPage([w, h], w > h ? 'l' : 'p');
+    doc.addImage(data, 'JPEG', 0, 0, w, h);
+  }
+  return { blob: doc.output('blob'), mime: 'application/pdf', ext: 'pdf' };
+}
+async function sha256(blob) {
+  const h = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
+  return Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+// Sending happens in 3 server steps. "Sent" is shown only after the server has confirmed all three.
+// If something fails halfway, the paper shows "Not sent yet" in the list and can be finished later — never lost, never faked.
+async function sendDoc() {
+  const s = S.send;
+  s.status = tx('preparing'); render();
+  const f = await buildFile(s.pages);
+  if (f.blob.size > MAX_BYTES) throw new Error(tx('file_too_big'));
+  if (!s.docId) {
+    const id = crypto.randomUUID();
+    const det = Object.fromEntries(Object.entries(s.details).map(([k, v]) => [k, String(v || '').trim()]).filter(([, v]) => v));
+    if (det.litres) { const n = Number(det.litres); if (!(n > 0 && n < 5000)) throw new Error(tx('litres_bad')); det.litres = n; }
+    const { error } = await sb.from('documents').insert({ id, company_id: S.company.id, type: s.type,
+      truck_id: S.dpick.truck || null, trailer_id: S.dpick.trailer || null, details: det });
+    if (error) throw error;
+    s.docId = id;                            // from here a retry continues this same paper instead of making a copy
+  }
+  s.status = tx('uploading'); render();
+  const hash = await sha256(f.blob);
+  const path = `${S.company.id}/docs/${s.docId}/${hash.slice(0, 20)}.${f.ext}`;
+  const up = await sb.storage.from('documents').upload(path, f.blob, { contentType: f.mime, upsert: false, cacheControl: '0' });
+  if (up.error && !/exist|duplicate/i.test(up.error.message || '')) throw up.error;   // "already there" = an earlier try got through
+  s.status = tx('confirming'); render();
+  const v = await sb.from('document_versions').insert({ document_id: s.docId, storage_path: path, sha256: hash,
+    size_bytes: f.blob.size, mime_type: f.mime });
+  if (v.error && !/document_versions_storage_path_key|duplicate key/i.test(v.error.message || '')) throw v.error;
+  // Double-check with the server before saying "Sent".
+  const { data: chk, error: ce } = await sb.from('documents').select('current_version').eq('id', s.docId).maybeSingle();
+  if (ce) throw ce;
+  if (!chk || !(chk.current_version > 0)) throw new Error(tx('not_confirmed'));
+  s.pages.forEach(p => p.url && URL.revokeObjectURL(p.url));
+  S.send = null; S.view = 'home'; S.docFilter = 'all';
+  await loadDocs();
+  setMsg('ok', tx(S.company.role === 'owner' ? 'sent_ok_owner' : 'sent_ok'));
+}
+// Opening a file always goes through the td-file server check (access is re-checked every time).
+async function fetchFile(path) {
+  if (S.files[path]) return S.files[path];
+  const { data } = await sb.auth.getSession();
+  if (!data.session) throw new Error(tx('error_generic'));
+  const r = await fetch(`${CFG.supabaseUrl}/functions/v1/td-file?path=${encodeURIComponent(path)}`,
+    { headers: { Authorization: 'Bearer ' + data.session.access_token, apikey: CFG.supabaseKey }, cache: 'no-store' });
+  if (!r.ok) throw new Error(tx('open_failed'));
+  const blob = await r.blob();
+  return (S.files[path] = { blob, url: URL.createObjectURL(blob) });
+}
+const fileNameFor = d => `${tx('doc_' + d.type).replace(/\s+/g, '-')}_${(d.details && d.details.date) || d.created_at.slice(0, 10)}${d.truck_id ? '_T' + unitName(d.truck_id) : ''}.${/pdf/.test(d.file.mime_type || '') ? 'pdf' : 'jpg'}`;
+async function addFiles(input) {
+  const files = Array.from(input.files || []); input.value = '';
+  if (!files.length || !S.send) return;
+  const s = S.send;
+  for (const file of files) {
+    const pdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+    if (pdf) {
+      if (s.pages.length) { setMsg('bad', tx('pdf_alone')); continue; }
+      if (file.size > MAX_BYTES) { setMsg('bad', tx('file_too_big')); continue; }
+      s.pages.push({ blob: file, pdf: true }); setMsg(null); continue;
+    }
+    if (s.pages.length >= 15) { setMsg('bad', tx('too_many_pages')); break; }
+    const p = await shrinkPhoto(file);
+    s.pages.push({ ...p, url: URL.createObjectURL(p.blob) }); setMsg(null);
+  }
+  render();
+}
 
 /* ---------------- actions ---------------- */
 async function run(fn) {
@@ -378,6 +589,39 @@ app.addEventListener('click', e => {
     S.confirmRetire = null; if (b.dataset.kind) { S.unitAction[b.dataset.kind] = null; S.pick[b.dataset.kind] = null; }
     await loadVehicles(); setMsg('ok', tx(a === 'retire' ? 'unit_retired' : 'unit_back'));
   });
+  if (a === 'newdoc' || a === 'finishdoc') {
+    const d = a === 'finishdoc' ? S.docs.find(x => x.id === b.dataset.id) : null;
+    if (d) { S.dpick.truck = d.truck_id || ''; S.dpick.trailer = d.trailer_id || ''; }
+    S.send = { type: d ? d.type : b.dataset.t, pages: [], docId: d ? d.id : null, status: '',
+               details: d ? { ...d.details } : { date: today() } };
+    S.view = 'send'; setMsg(null); render(); window.scrollTo(0, 0);
+  }
+  if (a === 'rmpage' && S.send) { const [p] = S.send.pages.splice(+b.dataset.i, 1); if (p && p.url) URL.revokeObjectURL(p.url); render(); }
+  if (a === 'cancelsend') { if (S.send) S.send.pages.forEach(p => p.url && URL.revokeObjectURL(p.url)); S.send = null; S.view = 'home'; setMsg(null); render(); }
+  if (a === 'senddoc' && S.send) run(async () => {
+    try { await sendDoc(); }
+    catch (err) {
+      if (S.send) S.send.status = S.send.docId ? tx('send_failed_kept') : '';
+      throw err;
+    }
+  });
+  if (a === 'opendoc') run(async () => {
+    const d = S.docs.find(x => x.id === b.dataset.id); if (!d || !d.file) return;
+    await fetchFile(d.file.storage_path); S.openDoc = d.id;
+  });
+  if (a === 'closedoc') { S.openDoc = null; render(); }
+  if (a === 'refreshdocs') run(loadDocs);
+  if (a === 'sharedoc') {
+    // The phone's own share sheet: WhatsApp, email, Messages, Print, Save to Files. Needs the file already opened.
+    const d = S.docs.find(x => x.id === b.dataset.id); const f = d && d.file && S.files[d.file.storage_path];
+    if (!f) return;
+    const file = new File([f.blob], fileNameFor(d), { type: f.blob.type || d.file.mime_type || 'application/octet-stream' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: tx('doc_' + d.type) }).catch(() => {});
+    } else {   // computer or older phone: download the file instead
+      const l = document.createElement('a'); l.href = f.url; l.download = file.name; document.body.appendChild(l); l.click(); l.remove();
+    }
+  }
   if (a === 'askremove') { S.confirmUser = b.dataset.u; render(); }
   if (a === 'noconfirm') { S.confirmUser = null; render(); }
   if (a === 'remove' || a === 'restore') run(async () => {
@@ -387,6 +631,14 @@ app.addEventListener('click', e => {
   });
 });
 app.addEventListener('change', async e => {
+  const act = e.target.dataset.act;
+  if (act === 'addfile') { snapDetails(); return addFiles(e.target); }
+  if (act === 'dpick') {
+    S.dpick[e.target.dataset.kind] = e.target.value;
+    try { localStorage.setItem('td_dpick', JSON.stringify(S.dpick)); } catch { /* private mode */ }
+    return;
+  }
+  if (act === 'docfilter') { S.docFilter = e.target.value; S.openDoc = null; return render(); }
   if (e.target.dataset.act === 'pick') {
     const k = e.target.dataset.kind, v = e.target.value; setMsg(null);
     if (v === '__add') S.unitAction[k] = 'add';
@@ -405,6 +657,12 @@ app.addEventListener('change', async e => {
   }
   render();
 });
+
+// Optional details are kept as they are typed, so adding a page (which redraws the screen) never loses them.
+const snapDetails = () => { if (!S.send) return; app.querySelectorAll('[data-det]').forEach(el => { S.send.details[el.dataset.det] = el.value; });
+  const det = app.querySelector('details'); if (det) S.send.openDetails = det.open; };
+app.addEventListener('input', e => { if (S.send && e.target.dataset.det) S.send.details[e.target.dataset.det] = e.target.value; });
+app.addEventListener('toggle', e => { if (S.send && e.target.tagName === 'DETAILS') S.send.openDetails = e.target.open; }, true);
 
 sb.auth.onAuthStateChange((event, session) => {
   if (event === 'PASSWORD_RECOVERY') { S.session = session; S.view = 'setpw'; setMsg(null); render(); }
