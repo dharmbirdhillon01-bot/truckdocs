@@ -219,7 +219,7 @@ const docRow = (d, showDriver) => {
 const docList = (showDriver) => {
   const list = S.docs.filter(d => S.docFilter === 'all' || d.type === S.docFilter);
   return `<label class="f"><span class="sr">${esc(tx('show'))}</span><select data-act="docfilter">
-      <option value="all">${esc(tx('all_types'))}</option>
+      <option value="all" ${S.docFilter === 'all' ? 'selected' : ''}>${esc(tx('all_types'))}</option>
       ${DOC_TYPES.map(t => `<option value="${t}" ${S.docFilter === t ? 'selected' : ''}>${esc(tx('doc_' + t))}</option>`).join('')}</select></label>
     ${list.length ? list.map(d => docRow(d, showDriver)).join('') : `<p class="muted" style="margin:0">${esc(tx('no_papers'))}</p>`}
     ${S.docs.length >= 100 ? `<p class="muted small" style="margin:0">${esc(tx('showing_latest'))}</p>` : ''}`;
