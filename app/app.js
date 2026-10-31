@@ -38,7 +38,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const S = { view: 'loading', session: null, profile: null, memberships: [], company: null, team: [],
             msg: null, busy: false, inviteCode: null, confirmUser: null, roleChoice: null,
             vehicles: [], editVehicle: null, confirmRetire: null, showRetired: false, showRemoved: false, pick: {}, unitAction: {},
-            docs: [], send: null, files: {}, openDoc: null, docFilter: 'all',
+            docs: [], send: null, files: {}, openDoc: null, docFilter: 'all', truckFilter: 'all', showTrash: false, confirmTrash: null, daddKind: null,
             dpick: (() => { try { return JSON.parse(localStorage.getItem('td_dpick')) || {}; } catch { return {}; } })() };
 const setMsg = (kind, text) => { S.msg = text ? { kind, text } : null; };
 function friendly(err) {
@@ -80,10 +80,11 @@ async function loadVehicles() {
 }
 // Papers. Owners get every paper in the company; drivers get only their own (the database decides this, not the app).
 async function loadDocs() {
-  const { data, error } = await sb.from('documents')
-    .select('id, type, truck_id, trailer_id, details, created_by, created_at, current_version, document_versions(version_no, storage_path, mime_type, size_bytes)')
-    .eq('company_id', S.company.id).is('trashed_at', null)
-    .order('created_at', { ascending: false }).limit(100);
+  let q = sb.from('documents')
+    .select('id, type, truck_id, trailer_id, details, created_by, created_at, current_version, verification, verified_at, trashed_at, document_versions(version_no, storage_path, mime_type, size_bytes)')
+    .eq('company_id', S.company.id);
+  q = S.showTrash ? q.not('trashed_at', 'is', null) : q.is('trashed_at', null);   // the trash shows only trashed papers
+  const { data, error } = await q.order('created_at', { ascending: false }).limit(100);
   if (error) throw error;
   S.docs = (data || []).map(d => {
     const vs = (d.document_versions || []).sort((a, b) => b.version_no - a.version_no);
@@ -191,7 +192,13 @@ const unitPicker = kind => {
     <select data-act="dpick" data-kind="${kind}" aria-label="${esc(tx(kind))}">
       <option value="" ${cur ? '' : 'selected'}>${esc(items.length ? tx('none_chosen') : tx('none_yet'))}</option>
       ${items.map(v => `<option value="${v.id}" ${cur && cur.id === v.id ? 'selected' : ''}>${esc(v.unit_number)}</option>`).join('')}
-    </select></div>`;
+      <option value="__add">＋ ${esc(tx(kind === 'truck' ? 'add_truck' : 'add_trailer'))}</option>
+    </select></div>
+    ${S.daddKind === kind ? `<form class="addrow" data-form="driveraddunit" data-kind="${kind}" novalidate>
+      <input id="dunitnum-${kind}" maxlength="20" autocomplete="off" autocapitalize="characters" required placeholder="${kind === 'truck' ? '101' : '205'}"
+        aria-label="${esc(tx(kind === 'truck' ? 'truck_number' : 'trailer_number'))}">
+      <button class="btn go" ${busyAttr()}>${L('add_unit')}</button>
+      <button type="button" class="btn quiet" data-act="daddcancel">${esc(tx('cancel'))}</button></form>` : ''}`;
 };
 const docRow = (d, showDriver) => {
   const driver = showDriver ? ((S.team.find(m => m.user_id === d.created_by) || {}).name || '—') : '';
@@ -205,7 +212,10 @@ const docRow = (d, showDriver) => {
     <div class="doc-main"><b>${L('doc_' + d.type)}</b>
       <div class="muted small">${showDriver ? esc(driver) + ' · ' : ''}${esc(whenText(d.created_at))}${units ? ' · ' + esc(units) : ''}</div>
       ${extra ? `<div class="small">${esc(extra)}</div>` : ''}
-      <div>${sent ? `<span class="chip ok">✓ ${L('sent_status')}</span>` : `<span class="chip warn">${L('not_finished')}</span>`}</div>
+      <div class="chips">${sent ? `<span class="chip ok">✓ ${L('sent_status')}</span>` : `<span class="chip warn">${L('not_finished')}</span>`}
+        ${d.type === 'invoice' && sent ? (d.verification === 'verified' ? `<span class="chip ok">✓ ${L('verified')}</span>` : `<span class="chip warn">${L('pending_check')}</span>`) : ''}
+        ${d.trashed_at ? `<span class="chip bad">${L('in_trash')}</span>` : ''}</div>
+      ${ownerTools(d, sent)}
       ${open && f ? `<div class="preview">${/^image\//.test(f.blob.type) ? `<img src="${f.url}" alt="">` : ''}
         <div class="btns two"><a class="btn" href="${f.url}" target="_blank" rel="noopener">${L('view_full')}</a>
         <button class="btn go" data-act="sharedoc" data-id="${d.id}">${L('share')}</button></div>
@@ -216,13 +226,34 @@ const docRow = (d, showDriver) => {
       : (d.created_by === S.session.user.id ? `<button class="btn go" data-act="finishdoc" data-id="${d.id}">${L('finish')}</button>` : '')}</div>
   </div>`;
 };
+// Owner-only buttons. The server checks every one of these again (only an owner can verify, trash or restore).
+const ownerTools = (d, sent) => {
+  if (S.company.role !== 'owner') return '';
+  if (d.trashed_at) return `<div class="btns"><button class="btn" data-act="restoredoc" data-id="${d.id}" ${busyAttr()}>${L('restore_paper')}</button></div>`;
+  if (S.confirmTrash === d.id) return `<div class="alert warn confirm"><span class="small">${esc(tx('confirm_trash'))}</span>
+      <div class="btns two"><button class="btn danger" data-act="trashdoc" data-id="${d.id}" ${busyAttr()}>${L('yes_trash')}</button>
+      <button class="btn" data-act="notrash">${L('cancel')}</button></div></div>`;
+  const canVerify = d.type === 'invoice' && sent && d.verification !== 'verified';
+  return `<div class="btns${canVerify ? ' two' : ''}">${canVerify
+      ? `<button class="btn go" data-act="verifydoc" data-id="${d.id}" ${busyAttr()}>${L('mark_verified')}</button>` : ''}
+    <button class="btn quiet" data-act="asktrash" data-id="${d.id}">${L('move_trash')}</button></div>`;
+};
 const docList = (showDriver) => {
-  const list = S.docs.filter(d => S.docFilter === 'all' || d.type === S.docFilter);
-  return `<label class="f"><span class="sr">${esc(tx('show'))}</span><select data-act="docfilter">
+  const list = S.docs.filter(d => (S.docFilter === 'all' || d.type === S.docFilter)
+    && (S.truckFilter === 'all' || d.truck_id === S.truckFilter || d.trailer_id === S.truckFilter));
+  const units = kind => S.vehicles.filter(v => v.kind === kind && (v.active || S.docs.some(d => d.truck_id === v.id || d.trailer_id === v.id)));
+  // Owner: pick a truck or trailer to see only its papers (its "folder").
+  const unitFilter = showDriver ? `<label class="f"><span class="sr">${esc(tx('truck'))}</span><select data-act="truckfilter">
+      <option value="all" ${S.truckFilter === 'all' ? 'selected' : ''}>${esc(tx('all_units'))}</option>
+      ${['truck', 'trailer'].map(k => units(k).length ? `<optgroup label="${esc(tx(k === 'truck' ? 'trucks' : 'trailers'))}">${units(k).map(v =>
+        `<option value="${v.id}" ${S.truckFilter === v.id ? 'selected' : ''}>${esc(tx(k))} ${esc(v.unit_number)}</option>`).join('')}</optgroup>` : '').join('')}
+    </select></label>` : '';
+  const trashToggle = showDriver ? `<button class="btn quiet" data-act="toggletrash" ${busyAttr()}>${esc(tx(S.showTrash ? 'back_to_papers' : 'show_trash'))}</button>` : '';
+  return `${S.showTrash ? `<div class="alert warn small">${esc(tx('trash_help'))}</div>` : ''}${unitFilter}<label class="f"><span class="sr">${esc(tx('show'))}</span><select data-act="docfilter">
       <option value="all" ${S.docFilter === 'all' ? 'selected' : ''}>${esc(tx('all_types'))}</option>
       ${DOC_TYPES.map(t => `<option value="${t}" ${S.docFilter === t ? 'selected' : ''}>${esc(tx('doc_' + t))}</option>`).join('')}</select></label>
     ${list.length ? list.map(d => docRow(d, showDriver)).join('') : `<p class="muted" style="margin:0">${esc(tx('no_papers'))}</p>`}
-    ${S.docs.length >= 100 ? `<p class="muted small" style="margin:0">${esc(tx('showing_latest'))}</p>` : ''}`;
+    ${S.docs.length >= 100 ? `<p class="muted small" style="margin:0">${esc(tx('showing_latest'))}</p>` : ''}${trashToggle}`;
 };
 const driverHome = () => `
   <div class="card">${sec('truck', 'trucks_trailers')}${unitPicker('truck')}${unitPicker('trailer')}
@@ -541,6 +572,20 @@ const forms = {
     if (!data || !data.length) throw new Error(tx('not_saved'));   // never claim success the server didn't confirm
     S.unitAction[form.dataset.kind] = null; await loadVehicles(); setMsg('ok', tx('saved'));
   },
+  async driveraddunit(form) {
+    const kind = form.dataset.kind === 'trailer' ? 'trailer' : 'truck';
+    const num = val('dunitnum-' + kind).trim();
+    if (!num) throw new Error(tx('unit_number_needed'));
+    const { data, error } = await sb.rpc('add_unit', { p_company: S.company.id, p_kind: kind, p_number: num });
+    if (error) throw error;
+    if (!data) throw new Error(tx('not_saved'));   // never claim success the server didn't confirm
+    await loadVehicles();
+    const v = S.vehicles.find(x => x.id === data);
+    if (!v) throw new Error(tx('not_saved'));
+    S.dpick[kind] = v.id; S.daddKind = null;
+    try { localStorage.setItem('td_dpick', JSON.stringify(S.dpick)); } catch { /* private mode */ }
+    setMsg('ok', tx(kind === 'truck' ? 'truck_ready' : 'trailer_ready').replace('{n}', v.unit_number));
+  },
   async join() {
     const { error } = await sb.rpc('accept_invite', { p_code: val('code').trim(), p_full_name: val('fullname').trim(), p_language: lang });
     if (error) throw error;
@@ -610,6 +655,21 @@ app.addEventListener('click', e => {
     await fetchFile(d.file.storage_path); S.openDoc = d.id;
   });
   if (a === 'closedoc') { S.openDoc = null; render(); }
+  if (a === 'daddcancel') { S.daddKind = null; render(); }
+  if (a === 'asktrash') { S.confirmTrash = b.dataset.id; render(); }
+  if (a === 'notrash') { S.confirmTrash = null; render(); }
+  if (a === 'toggletrash') run(async () => { S.showTrash = !S.showTrash; S.openDoc = null; S.confirmTrash = null; await loadDocs(); });
+  if (a === 'verifydoc' || a === 'trashdoc' || a === 'restoredoc') run(async () => {
+    const fn = { verifydoc: 'verify_invoice', trashdoc: 'trash_document', restoredoc: 'restore_document' }[a];
+    const { error } = await sb.rpc(fn, { p_document: b.dataset.id });
+    if (error) throw error;
+    S.confirmTrash = null; S.openDoc = null; await loadDocs();
+    // Report only what the server now shows.
+    const d = S.docs.find(x => x.id === b.dataset.id);
+    if (a === 'verifydoc' && !(d && d.verification === 'verified')) throw new Error(tx('not_saved'));
+    if (a !== 'verifydoc' && d) throw new Error(tx('not_saved'));   // it should have left this list
+    setMsg('ok', tx({ verifydoc: 'invoice_verified', trashdoc: 'paper_trashed', restoredoc: 'paper_restored' }[a]));
+  });
   if (a === 'refreshdocs') run(loadDocs);
   if (a === 'sharedoc') {
     // The phone's own share sheet: WhatsApp, email, Messages, Print, Save to Files. Needs the file already opened.
@@ -633,6 +693,12 @@ app.addEventListener('click', e => {
 app.addEventListener('change', async e => {
   const act = e.target.dataset.act;
   if (act === 'addfile') { snapDetails(); return addFiles(e.target); }
+  if (act === 'truckfilter') { S.truckFilter = e.target.value; S.openDoc = null; return render(); }
+  if (act === 'dpick' && e.target.value === '__add') {
+    S.daddKind = e.target.dataset.kind; setMsg(null); render();
+    const box = document.getElementById('dunitnum-' + S.daddKind); if (box) box.focus();
+    return;
+  }
   if (act === 'dpick') {
     S.dpick[e.target.dataset.kind] = e.target.value;
     try { localStorage.setItem('td_dpick', JSON.stringify(S.dpick)); } catch { /* private mode */ }

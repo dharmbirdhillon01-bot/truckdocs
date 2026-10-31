@@ -64,5 +64,15 @@
   "share": "ਭੇਜੋ / ਪ੍ਰਿੰਟ",
   "finish": "ਭੇਜਣਾ ਪੂਰਾ ਕਰੋ",
   "sent_status": "ਭੇਜਿਆ",
-  "not_finished": "ਹਾਲੇ ਨਹੀਂ ਗਿਆ"
+  "not_finished": "ਹਾਲੇ ਨਹੀਂ ਗਿਆ",
+  "verified": "ਜਾਂਚਿਆ ਗਿਆ",
+  "pending_check": "ਜਾਂਚ ਬਾਕੀ",
+  "in_trash": "ਰੱਦੀ ਵਿੱਚ",
+  "mark_verified": "ਜਾਂਚਿਆ ਮਾਰਕ ਕਰੋ",
+  "move_trash": "ਰੱਦੀ ਵਿੱਚ ਪਾਓ",
+  "yes_trash": "ਹਾਂ, ਰੱਦੀ ਵਿੱਚ ਪਾਓ",
+  "restore_paper": "ਵਾਪਸ ਲਿਆਓ",
+  "show_trash": "ਰੱਦੀ ਦੇਖੋ",
+  "back_to_papers": "ਕਾਗਜ਼ਾਂ 'ਤੇ ਵਾਪਸ",
+  "all_units": "ਸਾਰੇ ਟਰੱਕ ਅਤੇ ਟ੍ਰੇਲਰ"
 }

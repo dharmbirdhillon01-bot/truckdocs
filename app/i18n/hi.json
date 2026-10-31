@@ -64,5 +64,15 @@
   "share": "भेजें / प्रिंट",
   "finish": "भेजना पूरा करें",
   "sent_status": "भेजा गया",
-  "not_finished": "अभी नहीं गया"
+  "not_finished": "अभी नहीं गया",
+  "verified": "जाँचा गया",
+  "pending_check": "जाँच बाकी",
+  "in_trash": "कचरे में",
+  "mark_verified": "जाँचा हुआ मार्क करें",
+  "move_trash": "कचरे में डालें",
+  "yes_trash": "हाँ, कचरे में डालें",
+  "restore_paper": "वापस लाएँ",
+  "show_trash": "कचरा देखें",
+  "back_to_papers": "कागज़ों पर वापस",
+  "all_units": "सभी ट्रक और ट्रेलर"
 }

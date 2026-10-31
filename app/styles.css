@@ -160,3 +160,4 @@ main{gap:14px}
 details.card summary{font-weight:600;cursor:pointer;min-height:28px}
 details.card[open] summary{margin-bottom:4px}
 .btn[disabled]{cursor:not-allowed}
+.chips{display:flex;flex-wrap:wrap;gap:6px}

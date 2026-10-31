@@ -64,5 +64,15 @@
   "share": "Envoyer / Imprimer",
   "finish": "Terminer l’envoi",
   "sent_status": "Envoyé",
-  "not_finished": "Pas encore envoyé"
+  "not_finished": "Pas encore envoyé",
+  "verified": "Vérifiée",
+  "pending_check": "À vérifier",
+  "in_trash": "Dans la corbeille",
+  "mark_verified": "Marquer vérifiée",
+  "move_trash": "Mettre à la corbeille",
+  "yes_trash": "Oui, à la corbeille",
+  "restore_paper": "Restaurer",
+  "show_trash": "Voir la corbeille",
+  "back_to_papers": "Retour aux papiers",
+  "all_units": "Tous les camions et remorques"
 }

@@ -139,5 +139,22 @@
   "show": "Show",
   "showing_latest": "Showing the latest 100 papers.",
   "close": "Close",
-  "refresh": "Refresh"
+  "refresh": "Refresh",
+  "verified": "Verified",
+  "pending_check": "Needs check",
+  "in_trash": "In trash",
+  "mark_verified": "Mark verified",
+  "move_trash": "Move to trash",
+  "yes_trash": "Yes, move to trash",
+  "restore_paper": "Restore",
+  "confirm_trash": "Move this paper to trash? Nothing is erased. You can restore it from the trash.",
+  "show_trash": "Show trash",
+  "back_to_papers": "Back to papers",
+  "trash_help": "Papers in the trash are kept, never erased. Tap Restore to bring one back.",
+  "all_units": "All trucks and trailers",
+  "invoice_verified": "Invoice marked verified.",
+  "paper_trashed": "Moved to trash. You can restore it from the trash.",
+  "paper_restored": "Paper restored.",
+  "truck_ready": "Truck {n} is ready to use.",
+  "trailer_ready": "Trailer {n} is ready to use."
 }
